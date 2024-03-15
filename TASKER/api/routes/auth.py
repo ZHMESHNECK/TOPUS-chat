@@ -1,14 +1,19 @@
-from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import APIRouter, Depends
-from TASKER.db.user_db import user_registration, user_login
-from TASKER.core.config import get_session
-from TASKER.api.schemas.users import Login, Registration
 from sqlalchemy.sql import text
+from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, Request
+from TASKER.core.config import get_session, templates
+from TASKER.api.schemas.users import Login, Registration
+from TASKER.db.user_db import user_registration, user_login
 import logging
 
 
 auth = APIRouter(prefix='/auth', tags=['Authentication'])
+
+
+@auth.get('/login')
+async def login(request: Request):
+    return templates.TemplateResponse('login_reg.html', {'request': request})
 
 
 @auth.post('/login')

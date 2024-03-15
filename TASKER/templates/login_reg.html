@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block head %}
+<link rel="stylesheet" href="/TASKER/static/css/login_reg.css">
+<title>TASKER</title>
+{% endblock %}
+
+{% block content%}
+
+<div class="wrapper fadeInDown">
+    <div id="formContent">
+        <!-- Tabs Titles -->
+        <h2 class="active" id="login"> Sign In </h2>
+        <h2 class="inactive underlineHover" id="register">Sign Up </h2>
+
+        <!-- Icon -->
+        <div class="fadeIn first">
+            <img src="#" id="icon" alt="User Icon" />
+        </div>
+        <!-- Error messages -->
+        <div class="div-error">
+            <p id="signInError"></p>
+        </div>
+
+        <!-- Login Form -->
+        <form id="login_form">
+            <input type="text" id="login_username" class="fadeIn second" name="username" placeholder="login">
+            <input type="password" id="login_password" class="fadeIn third" name="password" placeholder="password">
+            <input id="login_submit" type="submit" class="fadeIn fourth" value="Log In">
+        </form>
+
+        <!-- Sign-up Form -->
+        <form id="register_form" style="display: none;">
+            <div class="div-error">
+                <p id="signUpError_username"></p>
+            </div>
+            <input type="text" id="signUpUsername" class="fadeIn second" name="username" placeholder="username">
+
+            <div class="div-error">
+                <p id="signUpError_password"></p>
+            </div>
+            <input type="password" id="signUpPassword" class="fadeIn third" name="password" placeholder="password">
+
+            <div class="div-error">
+                <p id="signUpError_re_password"></p>
+            </div>
+            <input type="password" id="signUpRePassword" class="fadeIn third" name="re_password"
+                placeholder="re-enter password">
+            <input id="register_submit" type="submit" class="fadeIn fourth" value="Create Account">
+        </form>
+
+        <!-- Remind Passowrd -->
+        <div id="formFooter">
+            <a class="underlineHover" href="#">Forgot Password?</a>
+        </div>
+    </div>
+</div>
+<script src="/TASKER/static/js/login_reg.js"></script>
+{% endblock %}

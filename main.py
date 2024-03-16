@@ -3,12 +3,14 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 
 from TASKER.api.routes.auth import auth
+from TASKER.api.routes.user import user
 from TASKER.core.exceptions import exception
 import uvicorn
 
 
 topus = FastAPI()
 topus.include_router(auth)
+topus.include_router(user)
 topus.mount('/TASKER/static', StaticFiles(directory='TASKER/static'), name='statics')
 
 

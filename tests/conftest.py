@@ -1,12 +1,27 @@
 from sqlalchemy.pool import NullPool
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from fastapi.testclient import TestClient
-from TASKER.core.config import get_session, engine, POSTGRES_URI
+from TASKER.core.config import get_session
+from TASKER.core.security import hash_password
 from TASKER.db.models import Base
+from TASKER.db.models import UserDB
+from dotenv import load_dotenv
 from httpx import ASGITransport, AsyncClient
 from main import topus
 import logging
 import pytest
+import os
+
+load_dotenv('.env-dev')
+
+
+# PostgreSQL
+host = os.getenv('T_POSTGRES_HOST')
+port = os.getenv('T_POSTGRES_PORT')
+database = os.getenv('T_POSTGRES_DB')
+user = os.getenv('T_POSTGRES_USER')
+password = os.getenv('T_POSTGRES_PASSWORD')
+TEST_POSTGRES_URI = f'postgresql+asyncpg://{user}:{password}@{host}:{port}/{database}'
 
 
 def pytest_configure(config):
@@ -14,7 +29,7 @@ def pytest_configure(config):
                         filemode='w', format="%(asctime)s %(levelname)s %(message)s")
 
 
-engine_test = create_async_engine(POSTGRES_URI, poolclass=NullPool)
+engine_test = create_async_engine(TEST_POSTGRES_URI, poolclass=NullPool)
 async_session_maker = async_sessionmaker(
     engine_test, class_=AsyncSession, expire_on_commit=False
 )
@@ -27,12 +42,30 @@ async def override_session():
 topus.dependency_overrides[get_session] = override_session
 
 
+async def defaults_user():
+    try:
+        async with async_session_maker() as session:
+            test_user = UserDB(
+                username="TestUserDB",
+                password=hash_password("12345678"),
+            )
+            test_user2 = UserDB(
+                username="TestUserDB2",
+                password=hash_password("12345678"),
+            )
+            session.add_all([test_user, test_user2])
+            await session.commit()
+    except Exception as e:
+        print(f"An error occurred while adding default user: {e}")
+
+
 @pytest.fixture(autouse=True, scope='module')
 async def lifespan():
-    async with engine.begin() as conn:
+    async with engine_test.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    await defaults_user()
     yield
-    async with engine.begin() as conn:
+    async with engine_test.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
 

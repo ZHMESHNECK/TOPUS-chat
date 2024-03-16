@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, List
 from pydantic import BaseModel, Field, field_validator
 from datetime import datetime, timezone
 from enum import Enum
@@ -10,23 +10,39 @@ class Role(Enum):
     todo_owner = 'todo_owner'
 
 
+class StatusFriend(Enum):
+    pending = 'pending'
+    accepted = 'accepted'
+
+
+class FriendRequest(BaseModel):
+    sender_name: str
+    receiver_name: str
+    status: StatusFriend = Field(default=StatusFriend.pending)
+
+
+class FriendShip(BaseModel):
+    user_name: str
+    friend_name: str
+
+
 class User(BaseModel):
-    username: str = Field()
-    password: str = Field()
+    username: str
+    password: str
     online: bool = Field(default=False)
     last_seen: datetime = Field(default=datetime.now(timezone.utc))
     role: Role = Field(default=Role.user)
 
 
 class Login(BaseModel):
-    username: str = Field()
-    password: str = Field()
+    username: str
+    password: str
 
 
 class Registration(BaseModel):
-    username: str = Field()
-    password: str = Field()
-    re_password: str = Field()
+    username: str
+    password: str
+    re_password: str
 
     @field_validator('username')
     def validate_username(cls, v: str):
@@ -42,6 +58,7 @@ class Registration(BaseModel):
 
     @field_validator('re_password')
     def validate_re_password(cls, v: str, values: Dict[str, Any]):
-        if v != values.data.get('password'):
-            raise ValueError('Паролі не збігаються')
-        return values
+        if values.data.get('password'):
+            if v != values.data.get('password'):
+                raise ValueError('Паролі не збігаються')
+            return values

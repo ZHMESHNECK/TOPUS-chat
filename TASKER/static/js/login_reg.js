@@ -10,16 +10,19 @@ formlogin.addEventListener('submit', (e) => {
     };
 
 
-    var xhr = new XMLHttpRequest();
+    let xhr = new XMLHttpRequest();
     xhr.open('POST', '/auth/login', true);
     xhr.setRequestHeader('Content-Type', 'application/json');
     xhr.send(JSON.stringify(data));
 
     xhr.onload = function () {
         if (xhr.status === 200) {
-            var response = JSON.parse(xhr.responseText);
+            let response = JSON.parse(xhr.responseText);
+            localStorage.setItem('token', response.token);
+            location.assign('/');
+
         } else {
-            var response = JSON.parse(xhr.responseText);
+            let response = JSON.parse(xhr.responseText);
             if (response.detail) {
                 document.getElementById('signInError').style.display = "block";
                 document.getElementById('signInError').textContent = response.detail;
@@ -43,16 +46,27 @@ formregister.addEventListener('submit', (e) => {
     };
 
 
-    var xhr = new XMLHttpRequest();
+    let xhr = new XMLHttpRequest();
     xhr.open('POST', '/auth/registration', true);
     xhr.setRequestHeader('Content-Type', 'application/json');
     xhr.send(JSON.stringify(data));
 
     xhr.onload = function () {
         if (xhr.status === 201) {
-            var response = JSON.parse(xhr.responseText);
+            let response = JSON.parse(xhr.responseText);
+
+            localStorage.setItem('token', response.token)
+
+            location.assign('/');
+
         } else {
-            var response = JSON.parse(xhr.responseText);
+            let response = JSON.parse(xhr.responseText);
+            if (response.detail) {
+                document.getElementById('signInError').textContent = response.detail
+            } else {
+                document.getElementById('signUpError_username').textContent = ''
+
+            }
             if (response.username) {
                 document.getElementById('signUpError_username').textContent = response.username
             } else {

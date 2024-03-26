@@ -1,6 +1,6 @@
 from sqlalchemy.dialects.postgresql import ENUM
 from sqlalchemy.orm import Mapped, mapped_column, declarative_base, relationship
-from sqlalchemy import BigInteger, func, VARCHAR, DateTime, Integer, ForeignKey
+from sqlalchemy import BigInteger, func, VARCHAR, DateTime, Integer, ForeignKey, String
 from pydantic import field_validator
 from datetime import datetime, timezone
 from TASKER.api.schemas.users import Role, StatusFriend
@@ -23,6 +23,9 @@ class FriendshipDB(Base):
     user = relationship('UserDB', back_populates='friends',
                         foreign_keys=[user_name])
     friend = relationship('UserDB', foreign_keys=[friend_name])
+
+    def as_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
 
 class FriendRequestDB(Base):
@@ -53,15 +56,89 @@ class UserDB(Base):
         DateTime, nullable=False, server_default=func.now())
     role: Mapped[Role] = mapped_column(role_enum, default=Role.user.value)
 
+    chats = relationship('ChatUser', back_populates='user')
     friends = relationship(
-        'FriendshipDB', back_populates='user', foreign_keys='FriendshipDB.user_name')
+        'FriendshipDB', back_populates='user', foreign_keys='FriendshipDB.user_name', lazy='selectin')
     sent_requests = relationship(
         'FriendRequestDB', back_populates='sender', foreign_keys='FriendRequestDB.sender_name')
     received_requests = relationship(
         'FriendRequestDB', back_populates='receiver', foreign_keys='FriendRequestDB.receiver_name')
+
+    def as_dict(self, fields=None):
+        result = {}
+        columns = self.__table__.columns
+        if fields:
+            columns = [c for c in columns if c.name in fields]
+        for column in columns:
+            value = getattr(self, column.name)
+            # Перевіряємо, чи значення є об'єктом datetime
+            if isinstance(value, datetime):
+                # Конвертуємо об'єкт datetime у рядок
+                # result[column.name] = value.strftime("%Y-%m-%d %H:%M")
+                result[column.name] = value.strftime("%d-%m-%y %H:%M")
+            else:
+                result[column.name] = value
+        return result
 
     @field_validator('last_seen')
     def set_online_status(cls, v):
         v = True
         cls.last_seen = datetime.now(timezone.utc)
         return v
+
+
+class Chat(Base):
+    __tablename__ = 'chat'
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    chat: Mapped[str] = mapped_column(VARCHAR, index=True)
+
+    users = relationship('ChatUser', back_populates='chat')
+    messages = relationship('MessageDB', back_populates='chat')
+
+
+class ChatUser(Base):
+    __tablename__ = 'chat_users'
+
+    chat_id = mapped_column(Integer, ForeignKey('chat.id'), primary_key=True)
+    user_id = mapped_column(Integer, ForeignKey('user.id'), primary_key=True)
+
+    chat = relationship('Chat', back_populates='users')
+    user = relationship('UserDB', back_populates='chats')
+
+
+class MessageDB(Base):
+    __tablename__ = 'message'
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    chat_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey('chat.id'), index=True)
+    sender_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('user.id'))
+    message: Mapped[str] = mapped_column(String)
+
+    chat = relationship('Chat', back_populates='messages')
+    sender = relationship('UserDB')
+    notifications = relationship(
+        'NotificationDB', back_populates='message', cascade='all, delete-orphan')
+
+    def as_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+
+class NotificationDB(Base):
+    __tablename__ = 'notification'
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, index=True)
+    username: Mapped[str] = mapped_column(VARCHAR, ForeignKey('user.username'))
+    friend_request_id: Mapped[int] = mapped_column(
+        ForeignKey('friend_request.id'), nullable=True)
+    message_id: Mapped[int] = mapped_column(
+        ForeignKey('message.id'), nullable=True)
+    is_read: Mapped[bool] = mapped_column(default=False)
+
+    user = relationship(
+        'UserDB', back_populates='notifications', foreign_keys=[username])
+    friend_request = relationship(
+        'FriendRequestDB', back_populates='notifications', foreign_keys=[friend_request_id])
+    message = relationship(
+        'MessageDB', back_populates='notifications', foreign_keys=[message_id])

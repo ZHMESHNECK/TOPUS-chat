@@ -8,7 +8,11 @@ async def exception(requests: Request, exc: RequestValidationError):
     for error in exc.errors():
         try:
             if len(error.get('loc')) > 1:
-                errors[error.get('loc')[1]] = error.get('msg').split('Value error, ')[1]
+                try:
+                    errors[error.get('loc')[1]] = error.get(
+                        'msg').split('Value error, ')[1]
+                except:
+                    errors[error.get('loc')[1]] = error.get('msg')
         except:
             pass
 

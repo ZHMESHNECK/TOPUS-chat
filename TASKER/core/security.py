@@ -1,13 +1,9 @@
-from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timedelta, timezone
-from fastapi.security import OAuth2PasswordBearer
-from fastapi import Depends, HTTPException
-from TASKER.core.config import get_session, secret_jwt, algorithm
+from TASKER.core.config import secret_jwt, algorithm
 from TASKER.db.models import UserDB
+from fastapi import Cookie
 import hashlib
 import jwt
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
 def hash_password(password: str) -> str:
@@ -26,13 +22,19 @@ def generate_token(user: UserDB) -> str:
     return jwt.encode(payload, secret_jwt, algorithm=algorithm)
 
 
-def decode_token(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_session)):
+def decode_token(TOPUS: str = Cookie(default=None)):
     try:
-        payload = jwt.decode(token, secret_jwt, algorithms=algorithm)
-        if not payload:
-            raise HTTPException(status_code=401, detail="Невірні данні")
+        payload = jwt.decode(TOPUS, secret_jwt, algorithms=algorithm)
         return payload
     except jwt.ExpiredSignatureError:
-        return HTTPException(status_code=401, detail='Потрібно авторизуватись')
+        return False
     except jwt.InvalidTokenError:
-        return HTTPException(status_code=401, detail='Невірні данні')
+        return False
+
+
+def chat_id_generator(user_id1: int, user_id2: int):
+    if user_id1 > user_id2:
+        user_id1, user_id2 = user_id2, user_id1
+
+    id = f'{str(user_id1)}/{str(user_id2)}'
+    return hashlib.sha1(id.encode('utf-8')).hexdigest()

@@ -58,7 +58,9 @@ class Registration(BaseModel):
 
     @field_validator('re_password')
     def validate_re_password(cls, v: str, values: Dict[str, Any]):
-        if values.data.get('password'):
-            if v != values.data.get('password'):
-                raise ValueError('Паролі не збігаються')
+        password = values.data.get('password')
+        if not password:
+            return None
+        if v == password:
             return values
+        raise ValueError('Паролі не збігаються')

@@ -1,10 +1,12 @@
+import asyncio
 from sqlalchemy.pool import NullPool
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from fastapi.testclient import TestClient
-from TASKER.core.config import get_session
+import websockets
 from TASKER.core.security import hash_password
-from TASKER.db.models import Base
-from TASKER.db.models import UserDB
+from TASKER.core.config import get_session
+from TASKER.api.schemas.users import StatusFriend
+from TASKER.db.models import Base, UserDB, FriendshipDB, FriendRequestDB
 from dotenv import load_dotenv
 from httpx import ASGITransport, AsyncClient
 from main import topus
@@ -42,6 +44,35 @@ async def override_session():
 topus.dependency_overrides[get_session] = override_session
 
 
+@pytest.fixture(scope='module')
+async def default_friendship():
+    try:
+        async with async_session_maker() as session:
+            test_user3 = UserDB(
+                username="TestUserDBFriend3",
+                password=hash_password("12345678"),
+            )
+            test_user4 = UserDB(
+                username="TestUserDBFriend4",
+                password=hash_password("12345678"),
+            )
+
+            friend_req = FriendRequestDB(
+                sender_name=test_user3.username,
+                receiver_name=test_user4.username,
+                status=StatusFriend.accepted.value
+            )
+            friendship = FriendshipDB(
+                user_name=test_user3.username,
+                friend_name=test_user4.username
+            )
+
+            session.add_all([test_user3, test_user4, friend_req, friendship])
+            await session.commit()
+    except Exception as e:
+        print(f"An error occurred while adding default user: {e}")
+
+
 async def defaults_user():
     try:
         async with async_session_maker() as session:
@@ -53,13 +84,14 @@ async def defaults_user():
                 username="TestUserDB2",
                 password=hash_password("12345678"),
             )
+
             session.add_all([test_user, test_user2])
             await session.commit()
     except Exception as e:
         print(f"An error occurred while adding default user: {e}")
 
 
-@pytest.fixture(autouse=True, scope='module')
+@pytest.fixture(autouse=True, scope='session')
 async def lifespan():
     async with engine_test.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -67,10 +99,3 @@ async def lifespan():
     yield
     async with engine_test.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
-
-
-@pytest.fixture(scope='function')
-async def client():
-    app_client = TestClient(topus)
-    async with AsyncClient(transport=ASGITransport(app=app_client.app), base_url='http://test') as ac:
-        yield ac

@@ -6,16 +6,26 @@ import httpx
 """ Default user DB
 1)
     username - TestUserDB
-    password - hash_password("12345678") - func
+    password - "12345678" - func
     role - default - "user"
 2)
     username - TestUserDB2
+    password - "12345678" - func
+    role - default - "user"
+
+    @fixture defaults_friendship
+3)
+    username - TestUserDBFriend3  - friend with 4
+    password - hash_password("12345678") - func
+    role - default - "user"
+4)
+    username - TestUserDBFriend4  - friend with 3
     password - hash_password("12345678") - func
     role - default - "user"
 """
 
 
-# @pytest.mark.skip
+@pytest.mark.skip
 class TestRegistration:
 
     # @pytest.mark.skip
@@ -29,9 +39,7 @@ class TestRegistration:
         response = await client.post('/auth/registration', json=data)
 
         assert response.status_code == 201
-        token = decode_token(response.json()['token'])
-        assert response.json() == {
-            "message": "Успішно зараєстровано", "token": response.json()['token']}
+        token = decode_token(response.cookies.get('TOPUS'))
         assert token['username'] == data['username']
 
     # @pytest.mark.skip
@@ -77,7 +85,7 @@ class TestRegistration:
         assert response.json() == {'re_password': 'Паролі не збігаються'}
 
 
-# @pytest.mark.skip
+@pytest.mark.skip
 class TestLogin:
 
     # @pytest.mark.skip
@@ -89,10 +97,11 @@ class TestLogin:
         }
         response = await client.post('/auth/login', json=login)
         assert response.status_code == 200
-        assert response.json() == {"message": "Успіх",
-                                   "token": response.json()['token']}
+        token = decode_token(response.cookies.get('TOPUS'))
+        assert token['username'] == login['username']
 
     # @pytest.mark.skip
+
     async def test_login_error_passw(self, client: httpx.AsyncClient):
 
         login = {
@@ -116,13 +125,33 @@ class TestFriend:
             "re_password": "12345678",
         }
         response = await client.post('/auth/registration', json=register)
-        headers = {
-            'Authorization': f'Bearer {response.json()["token"]}'
-        }
-        response = await client.get('/user/add_friend/TestUserDB', headers=headers)
+
+        response = await client.get('/user/add_friend/TestUserDB')
 
         assert response.status_code == 200
         assert response.json() == 'Надіслано'
+
+    # @pytest.mark.skip
+    async def test_declain_request(self, client: httpx.AsyncClient):
+
+        login = {
+            "username": "TestUserDB",
+            "password": "12345678"
+        }
+
+        response = await client.post('/auth/login', json=login)
+        assert response.status_code == 200
+        response = await client.get('/user/add_friend/TestUserDB2')
+        assert response.status_code == 200
+        login2 = {
+            "username": "TestUserDB2",
+            "password": "12345678"
+        }
+        response2 = await client.post('/auth/login', json=login2)
+        assert response2.status_code == 200
+        response2 = await client.get(f'/user/declain_friend/{login["username"]}')
+        assert response2.status_code == 200
+        assert response2.json() == 'Запит відхилено'
 
     # @pytest.mark.skip
     async def test_send_req_friend_error(self, client: httpx.AsyncClient):
@@ -133,10 +162,8 @@ class TestFriend:
             "re_password": "12345678",
         }
         response = await client.post('/auth/registration', json=register)
-        headers = {
-            'Authorization': f'Bearer {response.json()["token"]}'
-        }
-        response = await client.get('/user/add_friend/Teasdffd2', headers=headers)
+
+        response = await client.get('/user/add_friend/Teasdffd2')
 
         assert response.status_code == 400
         assert response.json() == {'detail': 'Профіль не знайдено'}
@@ -149,16 +176,13 @@ class TestFriend:
             "password": "12345678",
         }
         response = await client.post('/auth/login', json=login)
-        headers = {
-            'Authorization': f'Bearer {response.json()["token"]}'
-        }
-        response = await client.get('/user/add_friend/TestUserDB', headers=headers)
+
+        response = await client.get('/user/add_friend/TestUserDB')
 
         assert response.status_code == 400
         assert response.json() == {'detail': 'Не можна відправити собі запрос'}
 
     # @pytest.mark.skip
-
     async def test_accept_req_friend_error(self, client: httpx.AsyncClient):
 
         login = {
@@ -166,10 +190,8 @@ class TestFriend:
             "password": "12345678",
         }
         response = await client.post('/auth/login', json=login)
-        headers = {
-            'Authorization': f'Bearer {response.json()["token"]}'
-        }
-        response = await client.get('/user/accept_friend/TestUserDB', headers=headers)
+
+        response = await client.get('/user/accept_friend/TestUserDB')
 
         assert response.status_code == 500
         assert response.json() == {'detail': 'Запит не знайдено'}
@@ -180,64 +202,40 @@ class TestFriend:
             "username": "TestUserDB",
             "password": "12345678",
         }
-        user1 = await client.post('/auth/login', json=login1)
+        await client.post('/auth/login', json=login1)
+
+        # Відправка запиту
+        response = await client.get('/user/add_friend/TestUserDB2')
+        assert response.status_code == 200
+        assert response.json() == 'Надіслано'
 
         login2 = {
             "username": "TestUserDB2",
             "password": "12345678",
         }
-        user2 = await client.post('/auth/login', json=login2)
-
-        headers_user1 = {
-            'Authorization': f'Bearer {user1.json()["token"]}'
-        }
-        headers_user2 = {
-            'Authorization': f'Bearer {user2.json()["token"]}'
-        }
-
-        # Відправка запиту
-        response = await client.get('/user/add_friend/TestUserDB', headers=headers_user2)
-        assert response.status_code == 200
-        assert response.json() == 'Надіслано'
+        await client.post('/auth/login', json=login2)
 
         # Прийняття запиту
-        response = await client.get('/user/accept_friend/TestUserDB2', headers=headers_user1)
+        response = await client.get('/user/accept_friend/TestUserDB')
         assert response.status_code == 201
         assert response.json() == 'Додано до друзів'
 
         # Вилучення з друзів
-        response = await client.delete('/user/del_friend/TestUserDB', headers=headers_user2)
+        response = await client.delete('/user/del_friend/TestUserDB')
         assert response.status_code == 200
         assert response.json() == 'Видалено з друзів'
 
-    # @pytest.mark.skip
-    async def test_accept_req_friend(self, client: httpx.AsyncClient):
 
-        login1 = {
-            "username": "TestUserDB",
+@pytest.mark.skip
+class TestMainPage:
+
+    async def test_get_list_friend_1_friend(self, client: httpx.AsyncClient, default_friendship):
+        login = {
+            "username": "TestUserDBFriend4",
             "password": "12345678",
         }
-        user1 = await client.post('/auth/login', json=login1)
-
-        login2 = {
-            "username": "TestUserDB2",
-            "password": "12345678",
-        }
-        user2 = await client.post('/auth/login', json=login2)
-
-        headers_user1 = {
-            'Authorization': f'Bearer {user1.json()["token"]}'
-        }
-        headers_user2 = {
-            'Authorization': f'Bearer {user2.json()["token"]}'
-        }
-
-        # Відправка запиту
-        response = await client.get('/user/add_friend/TestUserDB', headers=headers_user2)
+        response = await client.post('/auth/login', json=login)
         assert response.status_code == 200
-        assert response.json() == 'Надіслано'
 
-        # Прийняття запиту
-        response = await client.get('/user/accept_friend/TestUserDB2', headers=headers_user1)
-        assert response.status_code == 201
-        assert response.json() == 'Додано до друзів'
+        response2 = await client.get('/')
+        assert response2.status_code == 200

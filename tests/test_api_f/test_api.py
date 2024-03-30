@@ -5,13 +5,17 @@ import httpx
 
 """ Default user DB
 1)
-    username - TestUserDB
-    password - "12345678" - func
+    login = {
+        "username" : "TestUserDB",
+        "password" : "12345678" - func
     role - default - "user"
+    }
 2)
-    username - TestUserDB2
-    password - "12345678" - func
+    login2 = {
+        "username" : "TestUserDB2",
+        "password" : "12345678" - func
     role - default - "user"
+    }
 
     @fixture defaults_friendship
 3)
@@ -25,7 +29,7 @@ import httpx
 """
 
 
-@pytest.mark.skip
+# @pytest.mark.skip
 class TestRegistration:
 
     # @pytest.mark.skip
@@ -70,7 +74,7 @@ class TestRegistration:
         assert response.status_code == 201
         response = await client.post('/auth/registration', json=data)
         assert response.status_code == 400
-        assert response.json() == {'detail': 'Нікнейм зайнятий, оберіть інший'}
+        assert response.json() == 'Нікнейм зайнятий, оберіть інший'
 
     # @pytest.mark.skip
     async def test_register_error_passwor_repass(self, client: httpx.AsyncClient):
@@ -85,7 +89,7 @@ class TestRegistration:
         assert response.json() == {'re_password': 'Паролі не збігаються'}
 
 
-@pytest.mark.skip
+# @pytest.mark.skip
 class TestLogin:
 
     # @pytest.mark.skip
@@ -110,7 +114,7 @@ class TestLogin:
         }
         response = await client.post('/auth/login', json=login)
         assert response.status_code == 400
-        assert response.json() == {"detail": "Невірний пароль або логін"}
+        assert response.json() == 'Невірний пароль або логін'
 
 
 # @pytest.mark.skip
@@ -124,7 +128,7 @@ class TestFriend:
             "password": "12345678",
             "re_password": "12345678",
         }
-        response = await client.post('/auth/registration', json=register)
+        await client.post('/auth/registration', json=register)
 
         response = await client.get('/user/add_friend/TestUserDB')
 
@@ -161,12 +165,12 @@ class TestFriend:
             "password": "12345678",
             "re_password": "12345678",
         }
-        response = await client.post('/auth/registration', json=register)
+        await client.post('/auth/registration', json=register)
 
         response = await client.get('/user/add_friend/Teasdffd2')
 
         assert response.status_code == 400
-        assert response.json() == {'detail': 'Профіль не знайдено'}
+        assert response.json() == 'Профіль не знайдено'
 
     # @pytest.mark.skip
     async def test_send_req_friend_error2(self, client: httpx.AsyncClient):
@@ -175,12 +179,12 @@ class TestFriend:
             "username": "TestUserDB",
             "password": "12345678",
         }
-        response = await client.post('/auth/login', json=login)
+        await client.post('/auth/login', json=login)
 
         response = await client.get('/user/add_friend/TestUserDB')
 
         assert response.status_code == 400
-        assert response.json() == {'detail': 'Не можна відправити собі запрос'}
+        assert response.json() == 'Не можна відправити собі запит'
 
     # @pytest.mark.skip
     async def test_accept_req_friend_error(self, client: httpx.AsyncClient):
@@ -189,12 +193,12 @@ class TestFriend:
             "username": "TestUserDB",
             "password": "12345678",
         }
-        response = await client.post('/auth/login', json=login)
+        await client.post('/auth/login', json=login)
 
         response = await client.get('/user/accept_friend/TestUserDB')
 
-        assert response.status_code == 500
-        assert response.json() == {'detail': 'Запит не знайдено'}
+        assert response.status_code == 400
+        assert response.json() == 'Не можна прийняти свій запит'
 
     # @pytest.mark.skip
     async def test_remove_friendship(self, client: httpx.AsyncClient):
@@ -226,16 +230,16 @@ class TestFriend:
         assert response.json() == 'Видалено з друзів'
 
 
-@pytest.mark.skip
+# @pytest.mark.skip
 class TestMainPage:
 
-    async def test_get_list_friend_1_friend(self, client: httpx.AsyncClient, default_friendship):
+    async def test_get_list_friend_1_friend(self, client: httpx.AsyncClient):
         login = {
-            "username": "TestUserDBFriend4",
+            "username": "TestUserDB",
             "password": "12345678",
         }
         response = await client.post('/auth/login', json=login)
         assert response.status_code == 200
 
-        response2 = await client.get('/')
-        assert response2.status_code == 200
+        response = await client.get('/')
+        assert response.status_code == 200

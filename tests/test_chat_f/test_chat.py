@@ -1,21 +1,25 @@
 from fastapi.testclient import TestClient
+from asyncio import sleep
 from TASKER.core.security import decode_token
 from main import topus
 import pytest
-from asyncio import sleep
 
 
 """ Default user DB
 1)
-    username - TestUserDB
-    password - hash_password("12345678") - func
+    login = {
+        "username" : "TestUserDB",
+        "password" : "12345678" - func
     role - default - "user"
+    }
 2)
-    username - TestUserDB2
-    password - hash_password("12345678") - func
+    login2 = {
+        "username" : "TestUserDB2",
+        "password" : "12345678" - func
     role - default - "user"
+    }
 
-    @fixture default_friendship
+    use @fixture default_friendship
 3)
     username - TestUserDBFriend3  - friend with 4
     password - hash_password("12345678") - func
@@ -30,7 +34,7 @@ from asyncio import sleep
 # @pytest.mark.skip
 class TestChat:
 
-    @pytest.mark.skip
+    # @pytest.mark.skip
     def test_websocket(self):
         """ 
         Перевірка websocket
@@ -41,7 +45,7 @@ class TestChat:
             assert data == "Hello WebSocket"
             websocket.close()
 
-    @pytest.mark.skip
+    # @pytest.mark.skip
     async def test_create_private_chat(self):
         """Створення приватного чату
         """
@@ -57,7 +61,7 @@ class TestChat:
         response = client.get('/chat/start_private_chat/2')
         assert response.status_code == 200
 
-    @pytest.mark.skip
+    # @pytest.mark.skip
     async def test_create_private_chat_error(self):
         """Створення приватного чату з самим собою
         """
@@ -75,7 +79,7 @@ class TestChat:
         assert response.status_code == 403
         assert response.json() == 'Собі не можна написати'
 
-    @pytest.mark.skip
+    # @pytest.mark.skip
     async def test_connect_private(self):
         """
         Юзер надсилає приватне повідомлення
@@ -94,7 +98,7 @@ class TestChat:
             assert ans == 'Hi, Private!'
             websocket.close()
 
-    @pytest.mark.skip
+    # @pytest.mark.skip
     async def test_connect_private_second(self):
         """
         Другий юзер підключається до приватного чату з першим
@@ -129,6 +133,7 @@ class TestChat:
             assert ans == 'Пока'
             websocket.close()
 
+    # @pytest.mark.skip
     async def test_get_chat_history(self, default_friendship):
         """ Отримання історії чату між 1 та 2 юзером
         """

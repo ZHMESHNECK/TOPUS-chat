@@ -1,8 +1,7 @@
 from sqlalchemy.dialects.postgresql import ENUM
 from sqlalchemy.orm import Mapped, mapped_column, declarative_base, relationship
 from sqlalchemy import BigInteger, func, VARCHAR, DateTime, Integer, ForeignKey, String
-from pydantic import field_validator
-from datetime import datetime, timezone
+from datetime import datetime
 from TASKER.api.schemas.users import Role, StatusFriend
 Base = declarative_base()
 
@@ -21,11 +20,16 @@ class FriendshipDB(Base):
         VARCHAR, ForeignKey('user.username'))
 
     user = relationship('UserDB', back_populates='friends',
-                        foreign_keys=[user_name])
+                        foreign_keys=[user_name], lazy='selectin')
     friend = relationship('UserDB', foreign_keys=[friend_name])
 
     def as_dict(self):
-        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        result = {}
+        result['id'] = self.user.id
+        result['username'] = self.user.username
+        result['online'] = self.user.online
+        result['last_seen'] = self.user.last_seen.strftime("%d-%m-%y %H:%M")
+        return result
 
 
 class FriendRequestDB(Base):
@@ -40,9 +44,31 @@ class FriendRequestDB(Base):
         status_enum, default='pending')
 
     sender = relationship(
-        'UserDB', back_populates='sent_requests', foreign_keys=[sender_name])
+        'UserDB', back_populates='sent_requests', foreign_keys=[sender_name], lazy='selectin')
     receiver = relationship(
-        'UserDB', back_populates='received_requests', foreign_keys=[receiver_name])
+        'UserDB', back_populates='received_requests', foreign_keys=[receiver_name], lazy='selectin')
+
+    notifications = relationship(
+        'NotificationDB', back_populates='friend_request', cascade='all, delete-orphan')
+
+
+class NotificationDB(Base):
+    __tablename__ = 'notification'
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, index=True)
+    username: Mapped[str] = mapped_column(VARCHAR, ForeignKey('user.username'))
+    friend_request_id: Mapped[int] = mapped_column(
+        ForeignKey('friend_request.id'), nullable=True)
+    message_id: Mapped[int] = mapped_column(
+        ForeignKey('message.id'), nullable=True)
+    is_read: Mapped[bool] = mapped_column(default=False)
+
+    user = relationship(
+        'UserDB', back_populates='notifications', foreign_keys=[username], lazy='selectin')
+    friend_request = relationship(
+        'FriendRequestDB', back_populates='notifications', foreign_keys=[friend_request_id], lazy='selectin')
+    message = relationship(
+        'MessageDB', back_populates='notifications', foreign_keys=[message_id])
 
 
 class UserDB(Base):
@@ -60,9 +86,11 @@ class UserDB(Base):
     friends = relationship(
         'FriendshipDB', back_populates='user', foreign_keys='FriendshipDB.user_name', lazy='selectin')
     sent_requests = relationship(
-        'FriendRequestDB', back_populates='sender', foreign_keys='FriendRequestDB.sender_name')
+        'FriendRequestDB', back_populates='sender', foreign_keys='FriendRequestDB.sender_name', lazy='selectin')
     received_requests = relationship(
-        'FriendRequestDB', back_populates='receiver', foreign_keys='FriendRequestDB.receiver_name')
+        'FriendRequestDB', back_populates='receiver', foreign_keys='FriendRequestDB.receiver_name', lazy='selectin')
+    notifications = relationship(
+        'NotificationDB', back_populates='user', cascade='all, delete-orphan')
 
     def as_dict(self, fields=None):
         result = {}
@@ -79,12 +107,6 @@ class UserDB(Base):
             else:
                 result[column.name] = value
         return result
-
-    @field_validator('last_seen')
-    def set_online_status(cls, v):
-        v = True
-        cls.last_seen = datetime.now(timezone.utc)
-        return v
 
 
 class Chat(Base):
@@ -123,22 +145,3 @@ class MessageDB(Base):
 
     def as_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
-
-
-class NotificationDB(Base):
-    __tablename__ = 'notification'
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, index=True)
-    username: Mapped[str] = mapped_column(VARCHAR, ForeignKey('user.username'))
-    friend_request_id: Mapped[int] = mapped_column(
-        ForeignKey('friend_request.id'), nullable=True)
-    message_id: Mapped[int] = mapped_column(
-        ForeignKey('message.id'), nullable=True)
-    is_read: Mapped[bool] = mapped_column(default=False)
-
-    user = relationship(
-        'UserDB', back_populates='notifications', foreign_keys=[username])
-    friend_request = relationship(
-        'FriendRequestDB', back_populates='notifications', foreign_keys=[friend_request_id])
-    message = relationship(
-        'MessageDB', back_populates='notifications', foreign_keys=[message_id])

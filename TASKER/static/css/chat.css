@@ -19,8 +19,8 @@ body {
     position: fixed;
     bottom: 0px;
     right: 5px;
-    width: 400px;
-    height: 450px;
+    width: 450px;
+    height: 500px;
     background-color: #fff;
     border-radius: 3px;
     box-shadow: 0 0 25px #3a9fc4;
@@ -127,7 +127,7 @@ body {
 }
 
 .right_chat .messages {
-    height: 71%;
+    height: 75%;
     list-style: none;
     border: 2px solid #fff;
     border-left: none;
@@ -324,9 +324,13 @@ body {
 }
 
 #searchResults>li {
-    /* background-color: yellow; */
     display: flex;
-    /* margin: 0 0 0px 10px; */
+    user-select: none;
+    border-left: 3px solid #ffc516;
+    border-bottom: 2px solid #ffc516;
+}
+.list-friends .info>li {
+    display: flex;
     user-select: none;
     border-left: 3px solid #ffc516;
     border-bottom: 2px solid #ffc516;
@@ -353,7 +357,7 @@ body {
     color: #ff676f;
 }
 
-.friendship {
+.send_friendship {
     display: flex;
     float: right;
     justify-content: center;
@@ -410,7 +414,7 @@ body {
 .container {
     position: fixed;
     right: 0;
-    bottom: 455px;
+    bottom: 510px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -423,7 +427,7 @@ body {
     box-shadow: 0 0 1px 0 rgba(24, 94, 224, 0.15), 0 6px 12px 0 rgba(24, 94, 224, 0.15);
     padding: 0.75rem;
     border-radius: 99px;
-    width: 370px;
+    max-width: 370px;
 }
 
 .tabs * {
@@ -491,8 +495,51 @@ input[id="radio-3"]:checked~.glider {
     transition: 0.25s ease-out;
 }
 
-@media (max-width: 700px) {
-    .tabs {
-        transform: scale(0.6);
-    }
+
+.add-friend-btn {
+    background-color: blue;
+    color: white;
+    border: 0;
+    margin: 0 5px;
+    cursor: pointer;
+}
+
+.accept-friend-btn {
+    background-color: green;
+    color: white;
+    border: 0;
+    margin: 0 5px;
+    cursor: pointer;
+}
+
+.declain-friend-btn {
+    background-color: red;
+    color: white;
+    border: 0;
+    margin: 0 5px;
+    cursor: pointer;
+}
+.delete-friend-btn {
+    background-color: red;
+    color: white;
+    border: 0;
+    margin: 0 5px;
+    cursor: pointer;
+}
+
+.selected_user {
+    border: 3px solid blue
+}
+
+.request_friendship {
+    display: flex;
+    float: right;
+    margin-top: 10px;
+}
+.remove_friendship {
+    display: flex;
+    float: right;
+    justify-content: center;
+    align-items: center;
+    margin-top: 10px;
 }

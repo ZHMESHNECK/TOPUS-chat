@@ -3,15 +3,25 @@
 <link rel="stylesheet" href="/TASKER/static/css/chat.css">
 {% endblock %}
 {% block content %}
+<button onclick="logout()">Встать та вийти</button>
+
+<p>Вітаємо {{ user.username }}</p>
 <p>{{ friends }}</p>
+<div class="hidden" id="user_info">{{ user.id }}</div>
+
+<form id="public_chat">
+    <input type="text" id="public_message" name="public_message">
+    <br>
+    <button type="submit">Заглушка</button>
+</form>
 <div class="container">
     <div class="tabs">
         <input type="radio" id="radio-1" name="tabs" checked />
-        <label class="tab" for="radio-1">Toddo<span class="notification">2</span></label>
+        <label class="tab" for="radio-1">Toddo<span class="notification">0</span></label>
         <input type="radio" id="radio-2" name="tabs" />
-        <label class="tab" for="radio-2">Чат<span class="notification">2</span></label>
+        <label class="tab" for="radio-2">Чат<span class="notification">{% if notifications %}{{notifications.unread_messages }}{% else %} 0 {% endif %}</span></label>
         <input type="radio" id="radio-3" name="tabs" />
-        <label class="tab" for="radio-3">Друзі<span class="notification">2</span></label>
+        <label class="tab" for="radio-3">Друзі<span class="notification">{% if notifications %}{{notifications.unread_friend_requests }}{% else %} 0 {% endif %}</span></label>
         <span class="glider"></span>
     </div>
 </div>
@@ -28,13 +38,15 @@
             {% for friend in friends %}
             <li>
                 <div class="info">
-                    <div class="user" id="{{ friend.id }}">{{ friend.username }}</div>
-                    {% if friend.status %}
-                    <div class="status on"> online</div>
+                    <div class="user" data-user-id="{{ friend.id }}" data-user-name="{{ friend.username }}"
+                        data-user-online="{{ friend.online }}" data-user-last_seen="{{ friend.last_seen }}"
+                        data-user-is-friend="true" data-user-send-req="false">{{ friend.username }}
+                    </div>
+                    {% if friend.online %}
+                        <div class="status on">онлайн</div>
                     {% else %}
-                    <div class="status off">{{ friend.last_seen }}</div>
-                    {% endif %}
-
+                        <div class="status off">{{ friend.last_seen }}</div>
+                    {% endif %}        
                 </div>
             </li>
             <hr class="bottom_line">
@@ -49,9 +61,18 @@
                 <span class="error_message"></span>
                 <span class="ok_message"></span>
             </div>
-            <div class="friendship hidden">
+            <div class="send_friendship hidden">
                 <span class="label">Додати в друзі:</span>
-                <button class="add-friend-btn" type="submit" name="friend_id" value="">+</button>
+                <button class="add-friend-btn" type="submit" name="add_friend" value="">+</button>
+            </div>
+            <div class="remove_friendship hidden">
+                <span class="label">Видалити з друзів:</span>
+                <button class="delete-friend-btn" type="submit" name="delete_friend" value="">-</button>
+            </div>
+            <div class="request_friendship hidden">
+                <span class="label">Запит: </span>
+                <button class="accept-friend-btn" type="submit" name="accept" value="">Додати</button>
+                <button class="declain-friend-btn" type="submit" name="declain" value="">Відхилити</button>
             </div>
             <div class="info">
                 <div class="name"></div>

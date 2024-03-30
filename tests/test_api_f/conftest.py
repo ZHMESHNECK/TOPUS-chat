@@ -89,7 +89,7 @@ async def defaults_user():
         print(f"An error occurred while adding default user: {e}")
 
 
-@pytest.fixture(autouse=True, scope='module')
+@pytest.fixture(autouse=True, scope='session')
 async def lifespan():
     async with engine_test.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends
 from TASKER.api.schemas.utils import SearchRequest
 from TASKER.core.security import decode_token
 from TASKER.core.config import get_session

@@ -28,8 +28,8 @@ async def get_count_notification(token: Dict, db: AsyncSession):
                     else_=0
                 )
             ).label('unread_messages')).where(and_(
-                NotificationDB.username == token['username'],
-                NotificationDB.is_read == False)).group_by(NotificationDB.username).correlate_except(NotificationDB))
+                NotificationDB.user_id == token['id'],
+                NotificationDB.is_read == False)).group_by(NotificationDB.user_id).correlate_except(NotificationDB))
 
     try:
         notifications = await db.execute(statement)
@@ -41,7 +41,7 @@ async def get_count_notification(token: Dict, db: AsyncSession):
 
 async def friend_req_noti(token: Dict, db: AsyncSession):
     statement = select(NotificationDB).filter(and_(
-        NotificationDB.username == token['username'],
+        NotificationDB.user_id == token['id'],
         NotificationDB.is_read == False,
         NotificationDB.friend_request_id != None))
     fields = ['id', 'username', 'online', 'last_seen']
@@ -64,4 +64,4 @@ async def friend_req_noti(token: Dict, db: AsyncSession):
         return JSONResponse(status_code=status.HTTP_200_OK, content='')
     except:
         logging.error(msg='friend_req_noti', exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -7,7 +7,6 @@
 
 <p>Вітаємо {{ user.username }}</p>
 <p>{{ friends }}</p>
-<div class="hidden" id="user_info">{{ user.id }}</div>
 
 <form id="public_chat">
     <input type="text" id="public_message" name="public_message">
@@ -82,20 +81,6 @@
             </div>
         </div>
         <ul class="messages">
-            <li class="i">
-                <div class="head">
-                    <span class="time">12312312</span>
-                    <span class="name">Буль</span>
-                </div>
-                <div class="message">Привет!sdfsdfsdfsdfsdfssfdgssdfsdfsdfsdfsdfdfsdfsdfsdfdfasdfasdf</div>
-            </li>
-            <li class="friend-with-a-SVAGina">
-                <div class="head">
-                    <span class="name">Юния</span>
-                    <span class="time">12312312</span>
-                </div>
-                <div class="message">чего тебе?</div>
-            </li>
         </ul>
         <div class="write-form">
             <textarea placeholder="Type your message" name="message_text" id="texxt" rows="2"></textarea>
@@ -103,5 +88,6 @@
         </div>
     </div>
 </div>
+<div class="hidden" id="user_info" data-user-id="{{ user.id }}" data-user-username="{{ user.username }}"></div>
 <script src="/TASKER/static/js/chat.js"></script>
 {% endblock %}

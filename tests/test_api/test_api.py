@@ -5,12 +5,16 @@ import httpx
 
 """ Default user DB
 1)
+    id: 1
+
     login = {
         "username" : "TestUserDB",
         "password" : "12345678" - func
     role - default - "user"
     }
 2)
+    id: 2
+    
     login2 = {
         "username" : "TestUserDB2",
         "password" : "12345678" - func
@@ -130,7 +134,7 @@ class TestFriend:
         }
         await client.post('/auth/registration', json=register)
 
-        response = await client.get('/user/add_friend/TestUserDB')
+        response = await client.get('/user/add_friend/1')
 
         assert response.status_code == 200
         assert response.json() == 'Надіслано'
@@ -145,7 +149,7 @@ class TestFriend:
 
         response = await client.post('/auth/login', json=login)
         assert response.status_code == 200
-        response = await client.get('/user/add_friend/TestUserDB2')
+        response = await client.get('/user/add_friend/2')
         assert response.status_code == 200
         login2 = {
             "username": "TestUserDB2",
@@ -153,7 +157,7 @@ class TestFriend:
         }
         response2 = await client.post('/auth/login', json=login2)
         assert response2.status_code == 200
-        response2 = await client.get(f'/user/declain_friend/{login["username"]}')
+        response2 = await client.get(f'/user/declain_friend/1')
         assert response2.status_code == 200
         assert response2.json() == 'Запит відхилено'
 
@@ -167,7 +171,7 @@ class TestFriend:
         }
         await client.post('/auth/registration', json=register)
 
-        response = await client.get('/user/add_friend/Teasdffd2')
+        response = await client.get('/user/add_friend/222')
 
         assert response.status_code == 400
         assert response.json() == 'Профіль не знайдено'
@@ -181,7 +185,7 @@ class TestFriend:
         }
         await client.post('/auth/login', json=login)
 
-        response = await client.get('/user/add_friend/TestUserDB')
+        response = await client.get('/user/add_friend/1')
 
         assert response.status_code == 400
         assert response.json() == 'Не можна відправити собі запит'
@@ -195,13 +199,16 @@ class TestFriend:
         }
         await client.post('/auth/login', json=login)
 
-        response = await client.get('/user/accept_friend/TestUserDB')
+        response = await client.get('/user/accept_friend/1')
 
         assert response.status_code == 400
         assert response.json() == 'Не можна прийняти свій запит'
 
     # @pytest.mark.skip
     async def test_remove_friendship(self, client: httpx.AsyncClient):
+        """
+            Відправляємо -> приймаємо -> видаляємо
+        """
         login1 = {
             "username": "TestUserDB",
             "password": "12345678",
@@ -209,7 +216,7 @@ class TestFriend:
         await client.post('/auth/login', json=login1)
 
         # Відправка запиту
-        response = await client.get('/user/add_friend/TestUserDB2')
+        response = await client.get('/user/add_friend/2')
         assert response.status_code == 200
         assert response.json() == 'Надіслано'
 
@@ -220,12 +227,12 @@ class TestFriend:
         await client.post('/auth/login', json=login2)
 
         # Прийняття запиту
-        response = await client.get('/user/accept_friend/TestUserDB')
+        response = await client.get('/user/accept_friend/1')
         assert response.status_code == 201
         assert response.json() == 'Додано до друзів'
 
         # Вилучення з друзів
-        response = await client.delete('/user/del_friend/TestUserDB')
+        response = await client.delete('/user/del_friend/1')
         assert response.status_code == 200
         assert response.json() == 'Видалено з друзів'
 

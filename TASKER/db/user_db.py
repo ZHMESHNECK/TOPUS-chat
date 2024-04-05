@@ -58,14 +58,14 @@ async def user_login(data: Login, db: AsyncSession):
     return response
 
 
-async def user_send_request_friend(username: str, friend_name: str,  db: AsyncSession):
-    if username == friend_name:
+async def user_send_request_friend(user_id: int, friend_id: int,  db: AsyncSession):
+    if user_id == friend_id:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST, content='Не можна відправити собі запит')
 
     statement_check_friendship = select(FriendRequestDB).filter(and_(
-        FriendRequestDB.sender_name == username,
-        FriendRequestDB.receiver_name == friend_name))
+        FriendRequestDB.sender_id == user_id,
+        FriendRequestDB.receiver_id == friend_id))
 
     check_friendship = await db.execute(statement_check_friendship)
     check_friendship = check_friendship.scalar_one_or_none()
@@ -75,7 +75,7 @@ async def user_send_request_friend(username: str, friend_name: str,  db: AsyncSe
                 'Запит вже надіслано', 'Вже у друзях')[check_friendship.status == StatusFriend.accepted.value])
 
     statement = select(UserDB).filter(
-        and_(UserDB.username.in_([username, friend_name])))
+        and_(UserDB.id.in_([user_id, friend_id])))
     users = await db.execute(statement)
     users = users.scalars().all()
 
@@ -84,19 +84,19 @@ async def user_send_request_friend(username: str, friend_name: str,  db: AsyncSe
             status_code=status.HTTP_400_BAD_REQUEST, content='Профіль не знайдено')
     user, friend = users
 
-    if user.username == friend_name:
+    if user.id == friend_id:
         friend, user = user, friend
     try:
         # Створюємо запит
         request = FriendRequestDB(
-            sender_name=user.username, receiver_name=friend.username)
+            sender_id=user.id, receiver_id=friend.id)
         db.add(request)
         await db.commit()
         await db.refresh(request)
 
         # Створюємо повідомлення
         notification = NotificationDB(
-            username=friend_name, friend_request_id=request.id)
+            user_id=friend.id, friend_request_id=request.id)
         db.add(notification)
         await db.commit()
         return JSONResponse(status_code=status.HTTP_200_OK, content='Надіслано')
@@ -106,14 +106,14 @@ async def user_send_request_friend(username: str, friend_name: str,  db: AsyncSe
                             content='Помилка додавання запиту на дружбу')
 
 
-async def accept_friend_request(username: str, friend_name: str, db: AsyncSession):
-    if username == friend_name:
+async def accept_friend_request(user_id: int, friend_id: int, db: AsyncSession):
+    if user_id == friend_id:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST, content='Не можна прийняти свій запит')
 
     statement = select(FriendRequestDB).filter(
-        and_(FriendRequestDB.sender_name == friend_name,
-             FriendRequestDB.receiver_name == username,
+        and_(FriendRequestDB.sender_id == friend_id,
+             FriendRequestDB.receiver_id == user_id,
              FriendRequestDB.status == StatusFriend.pending.value))
 
     try:
@@ -129,17 +129,19 @@ async def accept_friend_request(username: str, friend_name: str, db: AsyncSessio
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content='Запит не знайдено')
 
     friend_request.status = 'accepted'
-    friendship = FriendshipDB(
-        user_name=friend_request.sender_name, friend_name=friend_request.receiver_name)
+    friendship1 = FriendshipDB(
+        user_id=friend_request.sender_id, friend_id=friend_request.receiver_id)
+    friendship2 = FriendshipDB(
+        user_id=friend_request.receiver_id, friend_id=friend_request.sender_id)
 
-    db.add(friendship)
+    db.add_all([friendship1, friendship2])
     try:
         # Створюємо "Дружбу"
         await db.commit()
         await db.refresh(friend_request)
         # Помічаемо повідомлення як прочитане
         statement = select(NotificationDB).where(and_(
-            NotificationDB.username == username,
+            NotificationDB.user_id == user_id,
             NotificationDB.friend_request_id == friend_request.id))
         notification = await db.execute(statement)
         notification = notification.scalar_one_or_none()
@@ -156,17 +158,17 @@ async def accept_friend_request(username: str, friend_name: str, db: AsyncSessio
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content='Помилка сервера')
 
 
-async def declain_friend_request(username: str, friend_name: str, db: AsyncSession):
-    if username == friend_name:
+async def declain_friend_request(user_id: int, friend_id: int, db: AsyncSession):
+    if user_id == friend_id:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST, content='Ви не надсилали собі запит :)')
 
     statement = select(FriendRequestDB).where(or_(and_(
-        FriendRequestDB.sender_name == username,
-        FriendRequestDB.receiver_name == friend_name),
+        FriendRequestDB.sender_id == user_id,
+        FriendRequestDB.receiver_id == friend_id),
         and_(
-        FriendRequestDB.sender_name == friend_name,
-        FriendRequestDB.receiver_name == username)
+        FriendRequestDB.sender_id == friend_id,
+        FriendRequestDB.receiver_id == user_id)
     ))
 
     try:
@@ -178,7 +180,7 @@ async def declain_friend_request(username: str, friend_name: str, db: AsyncSessi
 
         # Помічаемо повідомлення як прочитане
         statement = select(NotificationDB).where(and_(
-            NotificationDB.username == username,
+            NotificationDB.user_id == user_id,
             NotificationDB.friend_request_id == friend_request.id))
         notification = await db.execute(statement)
         notification = notification.scalar_one_or_none()
@@ -202,25 +204,25 @@ async def declain_friend_request(username: str, friend_name: str, db: AsyncSessi
 
 async def delete_friendship(username: str, friend_name: str, db: AsyncSession):
     statement = select(FriendshipDB).filter(or_(and_(
-        FriendshipDB.user_name == username,
-        FriendshipDB.friend_name == friend_name),
+        FriendshipDB.user_id == username,
+        FriendshipDB.friend_id == friend_name),
         and_(
-        FriendshipDB.user_name == friend_name,
-        FriendshipDB.friend_name == username
+        FriendshipDB.user_id == friend_name,
+        FriendshipDB.friend_id == username
     )))
 
     friendship = await db.execute(statement)
-    friendship = friendship.scalar_one_or_none()
+    friendship = friendship.scalars().all()
     if not friendship:
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content="Зв'язок не знайдено")
 
     statement2 = select(FriendRequestDB).filter(or_(and_(
-        FriendRequestDB.sender_name == username,
-        FriendRequestDB.receiver_name == friend_name),
+        FriendRequestDB.sender_id == username,
+        FriendRequestDB.receiver_id == friend_name),
         and_(
-        FriendRequestDB.sender_name == friend_name,
-        FriendRequestDB.receiver_name == username
+        FriendRequestDB.sender_id == friend_name,
+        FriendRequestDB.receiver_id == username
 
     )))
     friend_request = await db.execute(statement2)
@@ -228,20 +230,20 @@ async def delete_friendship(username: str, friend_name: str, db: AsyncSession):
 
     try:
         await db.delete(friend_request)
-        await db.delete(friendship)
+        await db.delete(friendship[0])
+        await db.delete(friendship[1])
         await db.commit()
         return JSONResponse(status_code=status.HTTP_200_OK, content='Видалено з друзів')
     except IntegrityError:
+        await db.rollback()
+        logging.error(msg='delete_friendship', exc_info=True)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content='Помилка сервера')
 
 
 async def get_list_friends(token: Dict, db: AsyncSession):
-    statement = select(FriendshipDB).filter(or_(and_(
-        FriendshipDB.user_name == token['username']),
-        and_(
-        FriendshipDB.friend_name == token['username'],
-    )))
+    statement = select(FriendshipDB).filter(
+        FriendshipDB.user_id == token['id'])
     friends = await db.execute(statement)
     friends = friends.scalars().all()
 
@@ -255,8 +257,13 @@ async def get_search(data: SearchRequest, token: dict, db: AsyncSession):
         UserDB.username.ilike(f'%{data.request}')),
         and_(UserDB.id != token['id'])).order_by('username').limit(15)
 
-    result_user = await db.execute(statement_user)
-    result_user = result_user.scalars().all()
+    try:
+        result_user = await db.execute(statement_user)
+        result_user = result_user.scalars().all()
+    except:
+        await db.rollback()
+        logging.error(msg='get_search', exc_info=True)
+        return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content='Помилка сервера')
 
     if result_user:
         list_user = get_list_user(result_user, token)
@@ -286,3 +293,4 @@ async def set_user_status(user_id: int, online: bool, db: AsyncSession):
                 status_code=status.HTTP_404_NOT_FOUND, content='Юзера не знайдено')
     except:
         logging.error(msg='set_user_status', exc_info=True)
+        return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content='Помилка сервера')

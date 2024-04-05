@@ -1,7 +1,8 @@
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import HTTPException, WebSocketException, status
-from TASKER.db.models import Chat, ChatUser, MessageDB
+from fastapi.responses import JSONResponse
+from fastapi import WebSocketException, status
+from TASKER.db.models import Chat, ChatUser, MessageDB, NotificationDB
 from typing import List
 import logging
 
@@ -23,10 +24,10 @@ async def get_or_create_chat(chat_id: str, user_id: int, friend_id: int, db: Asy
             await add_user_to_chat(chat_id=new_chat.id, user_id=[user_id, friend_id], db=db)
 
             return new_chat
-    except Exception as e:
+    except Exception:
         logging.error(msg='get_or_create_chat', exc_info=True)
         await db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content='')
 
 
 async def add_user_to_chat(chat_id: str, user_id: List, db: AsyncSession):
@@ -35,9 +36,10 @@ async def add_user_to_chat(chat_id: str, user_id: List, db: AsyncSession):
     try:
         db.add_all([user1, user2])
         await db.commit()
-    except Exception as e:
+    except Exception:
+        await db.rollback()
         logging.error(msg='add_user_to_chat', exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content='')
 
 
 async def save_message(chat_id, sender, message, friend_id, db: AsyncSession):
@@ -51,12 +53,31 @@ async def save_message(chat_id, sender, message, friend_id, db: AsyncSession):
             )
             db.add(db_message)
             await db.commit()
+            await db.refresh(db_message)
+            await save_notification(user_id=friend_id, message=db_message.id, db=db)
         else:
-            raise HTTPException(
+            return JSONResponse(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    except Exception as e:
+    except Exception:
+        await db.rollback()
         logging.error(msg='save message', exc_info=True)
-        raise WebSocketException(code=status.WS_1003_UNSUPPORTED_DATA)
+        return WebSocketException(
+            code=status.WS_1003_UNSUPPORTED_DATA)
+
+
+async def save_notification(user_id, message, db: AsyncSession):
+    try:
+        db_message = NotificationDB(
+            user_id=user_id,
+            message_id=message
+        )
+        db.add(db_message)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        logging.error(msg='save message', exc_info=True)
+        return WebSocketException(
+            code=status.WS_1003_UNSUPPORTED_DATA)
 
 
 async def get_history_chat(chat_id: str, db: AsyncSession):
@@ -73,6 +94,8 @@ async def get_history_chat(chat_id: str, db: AsyncSession):
             history = history.scalars().all()
             return [msg.as_dict() for msg in history]
         except:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            await db.rollback()
+            logging.error(msg='get_history_chat', exc_info=True)
+            return JSONResponse(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content='')
     return None

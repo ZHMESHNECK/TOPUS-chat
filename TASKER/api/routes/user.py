@@ -3,25 +3,27 @@ from fastapi import APIRouter, Depends
 from TASKER.core.security import decode_token
 from TASKER.core.config import get_session
 from TASKER.db.user_db import declain_friend_request, user_send_request_friend, accept_friend_request, delete_friendship
+from typing import Dict
 
 
 user = APIRouter(prefix='/user', tags=['User'])
 
 
-@user.get('/add_friend/{friend_username}')
-async def send_friend_req(friend_username: str, token: str = Depends(decode_token), db: AsyncSession = Depends(get_session)):
-    return await user_send_request_friend(token['username'], friend_username, db)
+@user.get('/add_friend/{friend_id}')
+async def send_friend_req(friend_id: int, token: Dict = Depends(decode_token), db: AsyncSession = Depends(get_session)):
+    return await user_send_request_friend(token['id'], friend_id, db)
 
 
-@user.get('/accept_friend/{friend_username}')
-async def accept_friend_req(friend_username: str, token: str = Depends(decode_token), db: AsyncSession = Depends(get_session)):
-    return await accept_friend_request(token['username'], friend_username, db)
-
-@user.get('/declain_friend/{friend_username}')
-async def declain_friend_req(friend_username: str, token: str = Depends(decode_token), db: AsyncSession = Depends(get_session)):
-    return await declain_friend_request(token['username'], friend_username, db)
+@user.get('/accept_friend/{friend_id}')
+async def accept_friend_req(friend_id: int, token: Dict = Depends(decode_token), db: AsyncSession = Depends(get_session)):
+    return await accept_friend_request(token['id'], friend_id, db)
 
 
-@user.delete('/del_friend/{friend_username}')
-async def delete_friend_req(friend_username: str, token: str = Depends(decode_token), db: AsyncSession = Depends(get_session)):
-    return await delete_friendship(token['username'], friend_username, db)
+@user.get('/declain_friend/{friend_id}')
+async def declain_friend_req(friend_id: int, token: Dict = Depends(decode_token), db: AsyncSession = Depends(get_session)):
+    return await declain_friend_request(token['id'], friend_id, db)
+
+
+@user.delete('/del_friend/{friend_id}')
+async def delete_friend_req(friend_id: int, token: Dict = Depends(decode_token), db: AsyncSession = Depends(get_session)):
+    return await delete_friendship(token['id'], friend_id, db)

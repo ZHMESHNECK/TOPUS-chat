@@ -183,11 +183,14 @@ body {
     color: #fff;
     font-size: 15px;
     border-radius: 3px;
-    padding: 10px 5px;
+    padding: 5px 10px;
     line-height: 25px;
     max-width: 500px;
     word-wrap: break-word;
-    /* float: right; */
+    float: right;
+    min-width: 50px;
+    justify-content: center;
+    display: flex;
 }
 
 .right_chat .messages li .message:before {
@@ -316,7 +319,6 @@ body {
     width: 100%;
     box-sizing: border-box;
     color: #fff;
-
 }
 
 #searchResults {

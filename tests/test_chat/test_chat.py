@@ -1,6 +1,12 @@
+from unittest.mock import AsyncMock
 from fastapi.testclient import TestClient
+from fastapi import Depends, WebSocket, status, WebSocketDisconnect
 from asyncio import sleep
-from TASKER.core.security import decode_token
+
+from TASKER.api.routes.chat import private_manager
+from TASKER.core.config import get_session
+from TASKER.core.security import chat_id_generator
+from TASKER.db.chat_db import get_history_chat, get_or_create_chat
 from main import topus
 import pytest
 
@@ -46,38 +52,17 @@ class TestChat:
             websocket.close()
 
     # @pytest.mark.skip
-    async def test_create_private_chat(self):
-        """Створення приватного чату
-        """
-        client = TestClient(topus)
-        # Авторизація юзера 1
-        login1 = {
-            "username": "TestUserDB",
-            "password": "12345678",
-        }
-        user1 = client.post('/auth/login', json=login1)
-        assert user1.status_code == 200
-
-        response = client.get('/chat/start_private_chat/2')
-        assert response.status_code == 200
-
-    # @pytest.mark.skip
     async def test_create_private_chat_error(self):
         """Створення приватного чату з самим собою
         """
         client = TestClient(topus)
-        # Авторизація юзера 1
-        login1 = {
-            "username": "TestUserDB",
-            "password": "12345678",
-        }
-        user1 = client.post('/auth/login', json=login1)
-        assert user1.status_code == 200
-        token = decode_token(user1.cookies.get('TOPUS'))
 
-        response = client.get(f'/chat/start_private_chat/{token["id"]}')
-        assert response.status_code == 403
-        assert response.json() == 'Собі не можна написати'
+        with pytest.raises(WebSocketDisconnect) as exc_info:
+            with client.websocket_connect('/chat/private_chat/1/1') as websocket:
+                pass
+
+        assert exc_info.value.code == status.WS_1007_INVALID_FRAME_PAYLOAD_DATA
+        assert exc_info.value.reason == 'Собі не можна написати'
 
     # @pytest.mark.skip
     async def test_connect_private(self):
@@ -85,18 +70,13 @@ class TestChat:
         Юзер надсилає приватне повідомлення
         """
         client = TestClient(topus)
-        login = {
-            "username": "TestUserDB",
-            "password": "12345678",
-        }
-        response = client.post('/auth/login', json=login)
-        assert response.status_code == 200
 
-        with client.websocket_connect('/chat/private_chat/2') as websocket:
+        with client.websocket_connect('/chat/private_chat/1/2') as websocket:
             websocket.send_text('Hi, Private!')
             ans = websocket.receive_text()
             assert ans == 'Hi, Private!'
             websocket.close()
+
 
     # @pytest.mark.skip
     async def test_connect_private_second(self):
@@ -104,30 +84,16 @@ class TestChat:
         Другий юзер підключається до приватного чату з першим
         """
         client = TestClient(topus)
-        # Авторизація юзера 1
-        login1 = {
-            "username": "TestUserDB",
-            "password": "12345678",
-        }
-        user1 = client.post('/auth/login', json=login1)
-        assert user1.status_code == 200
 
         # юзер 1 надсилає повідомлення юзеру 2
-        with client.websocket_connect('/chat/private_chat/2') as websocket:
+        with client.websocket_connect('/chat/private_chat/1/2') as websocket:
             websocket.send_text('Юзер 1 пишет привет')
             ans = websocket.receive_text()
             assert ans == 'Юзер 1 пишет привет'
             websocket.close()
 
-        # Авторизація юзера 2
-        login2 = {
-            "username": "TestUserDB2",
-            "password": "12345678",
-        }
-        user2 = client.post('/auth/login', json=login2)
-        assert user2.status_code == 200
         # юзер 2 надсилає повідомлення юзеру 1
-        with client.websocket_connect('/chat/private_chat/1') as websocket:
+        with client.websocket_connect('/chat/private_chat/2/1') as websocket:
             websocket.send_text('Пока')
             ans = websocket.receive_text()
             assert ans == 'Пока'
@@ -139,20 +105,13 @@ class TestChat:
         """
 
         client = TestClient(topus)
-        # Авторизація юзера 3
-        login1 = {
-            "username": "TestUserDBFriend3",
-            "password": "12345678",
-        }
-        user1 = client.post('/auth/login', json=login1)
-        assert user1.status_code == 200
 
         # юзер 3 надсилає повідомлення юзеру 1
-        with client.websocket_connect('/chat/private_chat/1') as websocket:
-            websocket.send_text('Юзер 3 пишет привет юзеру 1')
+        with client.websocket_connect('/chat/private_chat/3/1') as websocket:
+            websocket.send_text('Юзер 3 пише привіт юзеру 1')
             websocket.receive_text()
             await sleep(1)
-            websocket.send_text('єто тест истории')
+            websocket.send_text('це тест історії')
             websocket.receive_text()
 
             websocket.close()
@@ -170,9 +129,9 @@ class TestChat:
             {'id': 1,
              'chat_id': 1,
              'sender_id': 3,
-             'message': 'Юзер 3 пишет привет юзеру 1'},
+             'message': 'Юзер 3 пише привіт юзеру 1'},
             {'id': 2,
              'chat_id': 1,
              'sender_id': 3,
-             'message': 'ето тест историй'}
+             'message': 'це тест історії'}
         ]

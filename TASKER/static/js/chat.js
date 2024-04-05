@@ -2,8 +2,8 @@ const searchResultsContainer = document.getElementById('searchResults');
 const messageHistory = document.querySelector('.messages');
 const responseDiv = document.querySelector('.response_search');
 // notification
+const chat_noti_btn = document.getElementById('radio-2')
 const friend_noti_btn = document.getElementById('radio-3')
-const Chat_noti_btn = document.getElementById('radio-2')
 // online / offline
 document.addEventListener('DOMContentLoaded', connetcToPubChat);
 document.addEventListener('DOMContentLoaded', clickOnUser(0));
@@ -12,13 +12,13 @@ const sendButton = document.querySelector('.write-form .send');
 sendButton.addEventListener('click', sendMessage);
 const textarea = document.getElementById('texxt');
 // public chat
-document.getElementById('public_chat').addEventListener('submit', sendMessage);
+// document.getElementById('public_chat').addEventListener('submit', sendMessage);
 // search
 const searcharea = document.getElementById('search_chat_req');
 searcharea.addEventListener('submit', getSearch);
 const searchbutton = document.querySelector('.search input[type="submit"]')
 searchbutton.addEventListener('click', getSearch);
-// btn
+// btn friend request
 const btn_add_to_friend = document.querySelector('.add-friend-btn')
 btn_add_to_friend.addEventListener('click', (e) => sendFriendReq(e))
 const btn_acc_friend = document.querySelector('.accept-friend-btn')
@@ -31,7 +31,14 @@ btn_rem_friend.addEventListener('click', (e) => removeFriend(e))
 let label_send_friend = document.querySelector('.send_friendship')
 let label_acc_dec_friend = document.querySelector('.request_friendship')
 let label_delete_friend = document.querySelector('.remove_friendship')
-
+// user_info
+const user = document.getElementById('user_info');
+const user_info = {
+    id: user.dataset.userId,
+    username: user.dataset.userUsername
+}
+// open private websocket
+let privateWebSockets = new Map();
 
 
 textarea.addEventListener('keydown', function (event) {
@@ -43,16 +50,17 @@ textarea.addEventListener('keydown', function (event) {
 
 
 function sendMessage() {
+    let empty_chat = document.querySelector('.empty-chat')
+    let friendId = document.querySelector('.selected_user').firstElementChild.attributes.getNamedItem('data-user-id').value
     const messageText = textarea.value;
-    if (!messageText.trim()) {
-        return
+    if (messageText.trim().length >= 1) {
+        // Видаляємо label с порожньою історією
+        if (!empty_chat == null && !empty_chat.classList.contains('hidden')) { empty_chat.classList.add('hidden') }
+
+        const privateChatWebSocket = connectToPrivCHat(friendId);
+        privateChatWebSocket.send(messageText);
     };
 
-
-    const user_message = `<li class="i"><div class="head"><span class="name"> new message</span></div><div class="message">${messageText}</div></li>`;
-
-    messageHistory.insertAdjacentHTML('beforeend', user_message);
-    messageHistory.scrollTop = messageHistory.scrollHeight;
     textarea.value = '';
 }
 
@@ -74,7 +82,6 @@ async function getSearch(e) {
         const data = {
             'request': input
         }
-
         try {
             let response = await fetch('/search', {
                 method: 'POST',
@@ -139,7 +146,7 @@ function clickOnUser(option) {
                 }
                 selectedElement.classList.add('selected_user');
                 fetchChatHistory(user_id, option)
-
+                connectToPrivCHat(user_id)
             }
         });
     });
@@ -147,6 +154,10 @@ function clickOnUser(option) {
 
 
 async function fetchChatHistory(userId, option) {
+    // option:
+    // 0 - show friend chat / remove from friend btn
+    // 1 - show btn send friend request
+    // 2 - accept / declain friend request
     // console.log(userId)
     if (!responseDiv.classList.contains('hidden')) {
         responseDiv.classList.add('hidden');
@@ -162,7 +173,7 @@ async function fetchChatHistory(userId, option) {
         user_data = {
             id: user.dataset.userId,
             username: user.dataset.userName,
-            online: user.dataset.userOnline,
+            online: user.dataset.userOnline.toLowerCase(),
             last_seen: user.dataset.userLast_seen,
             is_friend: user.dataset.userIsFriend,
             is_send_req: user.dataset.userSendReq
@@ -187,35 +198,48 @@ async function fetchChatHistory(userId, option) {
         if (option == 0) {
             if (label_delete_friend.classList.contains('hidden')) {
                 label_delete_friend.classList.remove('hidden');
-                label_delete_friend.lastElementChild.value = user_data['username']
+                label_delete_friend.lastElementChild.value = user_data['id']
             }
         }
         else if (option == 1) {
             if (label_delete_friend.classList.contains('hidden') && user_data['is_friend'] == 'true') {
                 label_delete_friend.classList.remove('hidden');
-                label_delete_friend.lastElementChild.value = user_data['username']
+                label_delete_friend.lastElementChild.value = user_data['id']
             }
             else if (label_send_friend.classList.contains('hidden') && user_data['is_send_req'] == 'false') {
                 label_send_friend.classList.remove('hidden');
-                label_send_friend.lastElementChild.value = user_data['username']
+                label_send_friend.lastElementChild.value = user_data['id']
             } else if (user_data['is_send_req'] == 'true') {
                 if (label_acc_dec_friend.classList.contains('hidden')) {
                     label_acc_dec_friend.classList.remove('hidden');
-                    label_acc_dec_friend.children[1].value = user_data['username']
-                    label_acc_dec_friend.children[2].value = user_data['username']
+                    label_acc_dec_friend.children[1].value = user_data['id']
+                    label_acc_dec_friend.children[2].value = user_data['id']
                 }
             }
         }
         else if (option == 2) {
             if (label_acc_dec_friend.classList.contains('hidden') && user_data['is_send_req'] == 'true') {
                 label_acc_dec_friend.classList.remove('hidden');
-                label_acc_dec_friend.children[1].value = user_data['username']
-                label_acc_dec_friend.children[2].value = user_data['username']
+                label_acc_dec_friend.children[1].value = user_data['id']
+                label_acc_dec_friend.children[2].value = user_data['id']
             }
         }
 
-        if (!data == null) {
-            console.log(data);
+        if (data.length > 0) {
+            data.forEach(function (message) {
+                document.querySelector('.top .info .name').textContent = user_data['username']
+                let main_status = document.querySelector('.top .info .count div');
+
+                main_status.className = user_data['online'] == 'true' ? 'status on' : 'status off';
+                main_status.textContent = user_data['online'] == 'true' ? 'онлайн' : user_data['last_seen'];
+                if (message.sender_id == user_info['id']) {
+                    let user_message = `<li class="i"><div class="head"><span class="name">Ви</span></div><div class="message">${message.message}</div></li>`;
+                    messageHistory.insertAdjacentHTML('beforeend', user_message);
+                } else {
+                    let friend_message = `<li class="friend-with-a-SVAGina"><div class="head"><span class="name"> ${user_data['username']}</span></div><div class="message">${message.message}</div></li>`;
+                    messageHistory.insertAdjacentHTML('beforeend', friend_message);
+                }
+            })
         } else {
             document.querySelector('.top .info .name').textContent = user_data['username']
             let main_status = document.querySelector('.top .info .count div');
@@ -225,6 +249,7 @@ async function fetchChatHistory(userId, option) {
 
             messageHistory.innerHTML = '<li class="empty-chat">Історія чату відсутня</li>';
         }
+        messageHistory.scrollTop = messageHistory.scrollHeight;
     } catch (error) {
         console.log('error', error)
     }
@@ -257,12 +282,13 @@ async function showFriendRequest() {
             const data = await response.json()
             // Очищаємо контейнер перед додаванням нових результатів
             searchResultsContainer.innerHTML = '';
-            createSerachResults(data);
-            clickOnUser(2)
-
+            if (data.length > 0) {
+                createSerachResults(data);
+                clickOnUser(2)
+            }
         }
     } catch (error) {
-        ''
+        console.log(error)
     }
 
 }
@@ -297,25 +323,63 @@ function createSerachResults(responseData) {
 }
 
 
-function sendPubMessage(e) {
-    e.preventDefault();
-    console.log(e.target)
+// function sendPubMessage(e) {
+//     e.preventDefault();
+//     console.log(e.target)
 
-    const message = document.getElementById('public_message')
-    console.log(message)
-}
+//     const message = document.getElementById('public_message')
+//     console.log(message)
+// }
 
 
 function connetcToPubChat() {
-    let user_id = document.getElementById('user_info').textContent
-    const websocket = new WebSocket(`ws://localhost:8000/chat/public_chat?user_id=${user_id}`)
+    const websocket = new WebSocket(`ws://localhost:8000/chat/public_chat?user_id=${user_info['id']}`)
+}
+
+function connectToPrivCHat(friend_id) {
+    let websocket;
+    if (privateWebSockets.has(friend_id)) {
+        websocket = privateWebSockets.get(friend_id);
+    } else {
+        websocket = new WebSocket(`ws://localhost:8000/chat/private_chat/${user_info['id']}/${friend_id}`);
+
+        websocket.onmessage = function (event) {
+            handleIncomingMessage(event.data);
+        };
+
+        privateWebSockets.set(friend_id, websocket);
+    }
+    return websocket;
+};
+
+function handleIncomingMessage(message) {
+    let active_friendname_chat = document.querySelector('.info.selected_user').firstElementChild.attributes.getNamedItem('data-user-name').value
+    let iserId_from_mes
+    let mes_from_user
+    try {
+        const parts = message.split(':', 2);
+        iserId_from_mes = parts[0];
+        mes_from_user = parts[1];
+    } catch (error) {
+        console.log(error)
+    }
+
+    if (iserId_from_mes != null && iserId_from_mes != user_info['id']) {
+        let friend_message = `<li class="friend-with-a-SVAGina"><div class="head"><span class="name">${active_friendname_chat}</span></div><div class="message">${mes_from_user}</div></li>`;
+        messageHistory.insertAdjacentHTML('beforeend', friend_message);
+        messageHistory.scrollTop = messageHistory.scrollHeight;
+    } else if (iserId_from_mes != null && user_info['id'] == iserId_from_mes) {
+        let user_message = `<li class="i"><div class="head"><span class="name">Ви</span></div><div class="message">${mes_from_user}</div></li>`;
+        messageHistory.insertAdjacentHTML('beforeend', user_message);
+        messageHistory.scrollTop = messageHistory.scrollHeight;
+    }
 }
 
 
 async function sendFriendReq(e) {
-    let friend_username = e.target.value
+    let friend_id = e.target.value
     try {
-        let response = await fetch(`/user/add_friend/${friend_username}`, {
+        let response = await fetch(`/user/add_friend/${friend_id}`, {
             method: 'GET',
         })
         const data = await response.json();
@@ -327,9 +391,9 @@ async function sendFriendReq(e) {
 
 
 async function acceptFriendReq(e) {
-    let friend_username = e.target.value
+    let friend_id = e.target.value
     try {
-        let response = await fetch(`/user/accept_friend/${friend_username}`, {
+        let response = await fetch(`/user/accept_friend/${friend_id}`, {
             method: 'GET',
         })
         const data = await response.json();
@@ -341,9 +405,9 @@ async function acceptFriendReq(e) {
 
 
 async function declainFriendReq(e) {
-    let friend_username = e.target.value
+    let friend_id = e.target.value
     try {
-        let response = await fetch(`/user/declain_friend/${friend_username}`, {
+        let response = await fetch(`/user/declain_friend/${friend_id}`, {
             method: 'GET',
         })
         const data = await response.json();
@@ -356,13 +420,13 @@ async function declainFriendReq(e) {
 
 
 async function removeFriend(e) {
-    let friend_username = e.target.value
+    let friend_id = e.target.value
     try {
-        let response = await fetch(`/user/del_friend/${friend_username}`, {
+        let response = await fetch(`/user/del_friend/${friend_id}`, {
             method: 'DELETE',
         })
         const data = await response.json();
-        showResponse(response.status, data, oprion = 'del')
+        showResponse(response.status, data, option = 'del')
     } catch (error) {
         console.log('error', error)
     }
@@ -373,7 +437,7 @@ function showResponse(status, data, option = null) {
     let okMessageSpan = responseDiv.querySelector('.ok_message');
     let errorMessageSpan = responseDiv.querySelector('.error_message');
     responseDiv.classList.remove('hidden');
-    if (status == 200) {
+    if (status == 200 || 201) {
         if (!errorMessageSpan.classList.contains('hidden')) {
             errorMessageSpan.classList.add('hidden')
         }
@@ -415,4 +479,3 @@ async function logout() {
     }
     return false
 }
-// /// document.getElementById("chatbox").contentWindow.scrollByPages(1);

@@ -1,14 +1,10 @@
-import asyncio
 from sqlalchemy.pool import NullPool
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from fastapi.testclient import TestClient
-import websockets
 from TASKER.core.security import hash_password
 from TASKER.core.config import get_session
 from TASKER.api.schemas.users import StatusFriend
 from TASKER.db.models import Base, UserDB, FriendshipDB, FriendRequestDB
 from dotenv import load_dotenv
-from httpx import ASGITransport, AsyncClient
 from main import topus
 import logging
 import pytest
@@ -24,7 +20,6 @@ database = os.getenv('T_POSTGRES_DB')
 user = os.getenv('T_POSTGRES_USER')
 password = os.getenv('T_POSTGRES_PASSWORD')
 TEST_POSTGRES_URI = f'postgresql+asyncpg://{user}:{password}@{host}:{port}/{database}'
-
 
 def pytest_configure(config):
     logging.basicConfig(level=logging.WARNING, filename='check_db_log.log',
@@ -44,7 +39,7 @@ async def override_session():
 topus.dependency_overrides[get_session] = override_session
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope='session')
 async def default_friendship():
     try:
         async with async_session_maker() as session:

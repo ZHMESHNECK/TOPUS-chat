@@ -27,41 +27,50 @@ import httpx
     role - default - "user"
 """
 
+
 # @pytest.mark.skip
 class TestNoti:
 
     # @pytest.mark.skip
     async def test_get_list_friend_req_noti(self, client: httpx.AsyncClient):
+        """
+        Реєструемо нових юзерів та відправляємо запит на дружбу TestUserDB2
+        """
         data = {
-            "username": "Test2",
+            "username": "Test5",
             "password": "12345678",
             "re_password": "12345678",
         }
 
-        await client.post('/auth/registration', json=data)
-        await client.get('/user/add_friend/TestUserDB')
+        response = await client.post('/auth/registration', json=data)
+        assert response.status_code == 201
+        token1 = decode_token(response.cookies['TOPUS'])['id']
+        await client.get('/user/add_friend/2')
 
         data2 = {
-            "username": "Test3",
+            "username": "Test6",
             "password": "12345678",
             "re_password": "12345678",
         }
 
-        await client.post('/auth/registration', json=data2)
-        await client.get('/user/add_friend/TestUserDB')
+        response = await client.post('/auth/registration', json=data2)
+        assert response.status_code == 201
+        token2 = decode_token(response.cookies['TOPUS'])['id']
+        await client.get('/user/add_friend/2')
 
         data3 = {
-            "username": "Test4",
+            "username": "Test7",
             "password": "12345678",
             "re_password": "12345678",
         }
 
         response = await client.post('/auth/registration', json=data3)
         assert response.status_code == 201
-        await client.get('/user/add_friend/TestUserDB')
+        token3 = decode_token(response.cookies['TOPUS'])['id']
+        await client.get('/user/add_friend/2')
 
         login = {
-            "username": "TestUserDB",
+            "username": "TestUserDB2",
             "password": "12345678"
         }
 
@@ -71,6 +80,8 @@ class TestNoti:
         assert response.status_code == 200
 
         response = response.json()
-        assert response[0]['username'] == data['username']
-        assert response[1]['username'] == data2['username']
-        assert response[2]['username'] == data3['username']
+
+        print(response)
+        assert response[0]['id'] == token1
+        assert response[1]['id'] == token2
+        assert response[2]['id'] == token3

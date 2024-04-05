@@ -14,21 +14,22 @@ class FriendshipDB(Base):
     __tablename__ = 'friendship'
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    user_name: Mapped[str] = mapped_column(
-        VARCHAR, ForeignKey('user.username'))
-    friend_name: Mapped[str] = mapped_column(
-        VARCHAR, ForeignKey('user.username'))
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey('user.id'))
+    friend_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey('user.id'))
 
     user = relationship('UserDB', back_populates='friends',
-                        foreign_keys=[user_name], lazy='selectin')
-    friend = relationship('UserDB', foreign_keys=[friend_name])
+                        foreign_keys=[user_id])
+    friend = relationship('UserDB', foreign_keys=[
+                          friend_id], lazy='selectin')
 
     def as_dict(self):
         result = {}
-        result['id'] = self.user.id
-        result['username'] = self.user.username
-        result['online'] = self.user.online
-        result['last_seen'] = self.user.last_seen.strftime("%d-%m-%y %H:%M")
+        result['id'] = self.friend.id
+        result['username'] = self.friend.username
+        result['online'] = self.friend.online
+        result['last_seen'] = self.friend.last_seen.strftime("%d-%m-%y %H:%M")
         return result
 
 
@@ -36,17 +37,17 @@ class FriendRequestDB(Base):
     __tablename__ = 'friend_request'
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    sender_name: Mapped[str] = mapped_column(
-        VARCHAR, ForeignKey('user.username'))
-    receiver_name: Mapped[str] = mapped_column(
-        VARCHAR, ForeignKey('user.username'))
+    sender_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey('user.id'))
+    receiver_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey('user.id'))
     status: Mapped[StatusFriend] = mapped_column(
         status_enum, default='pending')
 
     sender = relationship(
-        'UserDB', back_populates='sent_requests', foreign_keys=[sender_name], lazy='selectin')
+        'UserDB', back_populates='sent_requests', foreign_keys=[sender_id], lazy='selectin')
     receiver = relationship(
-        'UserDB', back_populates='received_requests', foreign_keys=[receiver_name], lazy='selectin')
+        'UserDB', back_populates='received_requests', foreign_keys=[receiver_id], lazy='selectin')
 
     notifications = relationship(
         'NotificationDB', back_populates='friend_request', cascade='all, delete-orphan')
@@ -56,7 +57,7 @@ class NotificationDB(Base):
     __tablename__ = 'notification'
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, index=True)
-    username: Mapped[str] = mapped_column(VARCHAR, ForeignKey('user.username'))
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('user.id'))
     friend_request_id: Mapped[int] = mapped_column(
         ForeignKey('friend_request.id'), nullable=True)
     message_id: Mapped[int] = mapped_column(
@@ -64,7 +65,7 @@ class NotificationDB(Base):
     is_read: Mapped[bool] = mapped_column(default=False)
 
     user = relationship(
-        'UserDB', back_populates='notifications', foreign_keys=[username], lazy='selectin')
+        'UserDB', back_populates='notifications', foreign_keys=[user_id], lazy='selectin')
     friend_request = relationship(
         'FriendRequestDB', back_populates='notifications', foreign_keys=[friend_request_id], lazy='selectin')
     message = relationship(
@@ -84,11 +85,11 @@ class UserDB(Base):
 
     chats = relationship('ChatUser', back_populates='user')
     friends = relationship(
-        'FriendshipDB', back_populates='user', foreign_keys='FriendshipDB.user_name', lazy='selectin')
+        'FriendshipDB', back_populates='user', foreign_keys='FriendshipDB.user_id', lazy='selectin')
     sent_requests = relationship(
-        'FriendRequestDB', back_populates='sender', foreign_keys='FriendRequestDB.sender_name', lazy='selectin')
+        'FriendRequestDB', back_populates='sender', foreign_keys='FriendRequestDB.sender_id', lazy='selectin')
     received_requests = relationship(
-        'FriendRequestDB', back_populates='receiver', foreign_keys='FriendRequestDB.receiver_name', lazy='selectin')
+        'FriendRequestDB', back_populates='receiver', foreign_keys='FriendRequestDB.receiver_id', lazy='selectin')
     notifications = relationship(
         'NotificationDB', back_populates='user', cascade='all, delete-orphan')
 

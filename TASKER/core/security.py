@@ -1,7 +1,9 @@
 from datetime import datetime, timedelta, timezone
-from TASKER.core.config import secret_jwt, algorithm
-from TASKER.db.models import UserDB
 from fastapi import Cookie
+from TASKER.core.config import secret_jwt, algorithm
+from TASKER.api.schemas.users import UserFToken
+from TASKER.db.models import UserDB
+import logging
 import hashlib
 import jwt
 
@@ -24,12 +26,14 @@ def generate_token(user: UserDB) -> str:
 
 def decode_token(TOPUS: str = Cookie(default=None)):
     try:
-        payload = jwt.decode(TOPUS, secret_jwt, algorithms=algorithm)
-        return payload
+        payload: UserFToken = jwt.decode(TOPUS, secret_jwt, algorithms=algorithm)
+        return UserFToken(**payload)
     except jwt.ExpiredSignatureError:
         return False
     except jwt.InvalidTokenError:
         return False
+    except:
+        logging.error(msg='decode_token', exc_info=True)
 
 
 def chat_id_generator(user_id1: int, user_id2: int):

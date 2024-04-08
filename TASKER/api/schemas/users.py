@@ -64,3 +64,9 @@ class Registration(BaseModel):
         if v == password:
             return values
         raise ValueError('Паролі не збігаються')
+    
+class UserFToken(BaseModel):
+    exp: datetime
+    id: int
+    username: str
+    role: Role

@@ -7,6 +7,7 @@
 
 <p>Вітаємо {{ user.username }}</p>
 <p>{{ friends }}</p>
+<p>{{ notifications }}</p>
 
 <form id="public_chat">
     <input type="text" id="public_message" name="public_message">
@@ -15,12 +16,10 @@
 </form>
 <div class="container">
     <div class="tabs">
-        <input type="radio" id="radio-1" name="tabs" checked />
-        <label class="tab" for="radio-1">Toddo<span class="notification">0</span></label>
         <input type="radio" id="radio-2" name="tabs" />
-        <label class="tab" for="radio-2">Чат<span class="notification">{% if notifications %}{{notifications.unread_messages }}{% else %} 0 {% endif %}</span></label>
+        <label class="tab" for="radio-2">Чат<span class="notification">{{ notifications.unread_mess }}</span></label>
         <input type="radio" id="radio-3" name="tabs" />
-        <label class="tab" for="radio-3">Друзі<span class="notification">{% if notifications %}{{notifications.unread_friend_requests }}{% else %} 0 {% endif %}</span></label>
+        <label class="tab" for="radio-3">Друзі<span class="notification">{{ notifications.user_req }}</span></label>
         <span class="glider"></span>
     </div>
 </div>
@@ -42,10 +41,18 @@
                         data-user-is-friend="true" data-user-send-req="false">{{ friend.username }}
                     </div>
                     {% if friend.online %}
-                        <div class="status on">онлайн</div>
+                    <div class="status on">онлайн
+                        {% if friend.id in notifications.user_mes %}
+                        <div class="noti_mess">{{ notifications.user_mes.friend.id }}</div>
+                        {% endif %}
+                    </div>
                     {% else %}
-                        <div class="status off">{{ friend.last_seen }}</div>
-                    {% endif %}        
+                    <div class="status off">{{ friend.last_seen }}
+                        {% if friend.id in notifications.user_mes %}
+                        <div class="noti_mess">{{ notifications.user_mes[friend.id] }}</div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
                 </div>
             </li>
             <hr class="bottom_line">
@@ -88,6 +95,10 @@
         </div>
     </div>
 </div>
-<div class="hidden" id="user_info" data-user-id="{{ user.id }}" data-user-username="{{ user.username }}"></div>
+<!-- <div class="hidden" id="user_info" data-user-id="{{ user.id }}" data-user-username="{{ user.username }}"></div> -->
+<script>
+    const notifications = JSON.parse('{{ notifications | tojson | safe }}')
+    const user = JSON.parse('{{ user | tojson | safe }}')
+</script>
 <script src="/TASKER/static/js/chat.js"></script>
 {% endblock %}

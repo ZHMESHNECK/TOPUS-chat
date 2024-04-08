@@ -54,20 +54,30 @@ async def default_friendship():
                 username="TestUserDBFriend4",
                 password=hash_password("12345678"),
             )
+            session.add_all([test_user3, test_user4])
+            await session.commit()
+            await session.refresh(test_user3)
+            await session.refresh(test_user4)
 
             friend_req = FriendRequestDB(
-                sender_name=test_user3.username,
-                receiver_name=test_user4.username,
+                sender_id=test_user3.id,
+                receiver_id=test_user4.id,
                 status=StatusFriend.accepted.value
             )
-            friendship = FriendshipDB(
-                user_name=test_user3.username,
-                friend_name=test_user4.username
+            friendship1 = FriendshipDB(
+                user_id=test_user3.id,
+                friend_id=test_user4.id,
+            )
+            friendship2 = FriendshipDB(
+                friend_id=test_user3.id,
+                user_id=test_user4.id,
             )
 
-            session.add_all([test_user3, test_user4, friend_req, friendship])
+            session.add_all(
+                [test_user3, test_user4, friend_req, friendship1, friendship2])
             await session.commit()
     except Exception as e:
+        logging.error(msg='default_friendship', exc_info=True)
         print(f"An error occurred while adding default user: {e}")
 
 

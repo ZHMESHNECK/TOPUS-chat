@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import MetaData
 from dotenv import load_dotenv
+import logging
 import os
 
 
@@ -35,5 +36,10 @@ async def get_session():
         yield session
 
 
-# Frond-end
+# Front-end
 templates = Jinja2Templates(directory='TASKER/templates')
+
+
+# Logging
+logging.basicConfig(level=logging.WARNING, filename='check_db_log.log',
+                    filemode='w', format="%(asctime)s %(levelname)s %(message)s")

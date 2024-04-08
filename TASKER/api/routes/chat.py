@@ -3,7 +3,8 @@ from fastapi.responses import JSONResponse
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status, WebSocketException
 from TASKER.core.security import chat_id_generator, decode_token
 from TASKER.core.config import get_session
-from TASKER.db.chat_db import get_history_chat, get_or_create_chat, save_message, save_notification
+from TASKER.api.schemas.users import UserFToken
+from TASKER.db.chat_db import get_history_chat, get_or_create_chat, save_message
 from TASKER.db.user_db import set_user_status
 from typing import Dict, List
 
@@ -25,32 +26,36 @@ class PrivateManager:
     def __init__(self):
         self.connections: Dict[str, List[WebSocket]] = {}
 
-    async def register_websocket(self, chat_id: str, user_id: int, friend_id: int,  websocket: WebSocket, db: AsyncSession) -> None:
+    async def register_websocket(self, chat: str, user_id: int, friend_id: int, websocket: WebSocket, db: AsyncSession) -> None:
 
-        if chat_id not in self.connections:
-            self.connections[chat_id] = []
-        self.connections[chat_id].append(websocket)
-        await get_or_create_chat(
-            chat_id=chat_id, user_id=user_id, friend_id=friend_id, db=db)
+        if chat not in self.connections:
+            self.connections[chat] = []
+        self.connections[chat].append(websocket)
+        chat = await get_or_create_chat(
+            chat=chat, user_id=user_id, friend_id=friend_id, db=db)
+        if not chat:
+            raise WebSocketException(
+                code=status.WS_1011_INTERNAL_ERROR, reason='Помилка при підключенні')
 
-    async def broadcast(self, chat_id: str, message: str, sender_id: int, friend_id: int, add_to_db: bool, userwebsocket: WebSocket, db: AsyncSession = None) -> None:
-        if chat_id not in self.connections:
+    async def broadcast(self, chat: str, message: str, sender_id: int, friend_id: int, add_to_db: bool, db: AsyncSession = None) -> None:
+        if chat not in self.connections:
             return
 
         if add_to_db:
-            await self.save_message_to_db(chat_id=chat_id, message=message, sender=sender_id, friend_id=friend_id, db=db)
-
-        for websocket in self.connections[chat_id]:
+            mes = await self.save_message_to_db(chat=chat, message=message, sender=sender_id, friend_id=friend_id, db=db)
+            if mes:
+                raise WebSocketException(code=status.WS_1003_UNSUPPORTED_DATA, reason='Помилка при збереженні повідомлення')
+        for websocket in self.connections[chat]:
             await websocket.send_text(f'{sender_id}:{message}')
 
-    def disconnect(self, chat_id, websocket: WebSocket):
-        chat: list = self.connections.get(chat_id)
+    def disconnect(self, chat, websocket: WebSocket):
+        chat: list = self.connections.get(chat)
         if chat:
             chat.remove(websocket)
 
     @staticmethod
-    async def save_message_to_db(chat_id: str, message: str, sender: int, friend_id, db: AsyncSession) -> None:
-        await save_message(chat_id=chat_id, message=message, sender=sender, friend_id=friend_id, db=db)
+    async def save_message_to_db(chat: str, message: str, sender: int, friend_id, db: AsyncSession) -> None:
+        return await save_message(chat=chat, message=message, sender=sender, friend_id=friend_id, db=db)
 
 
 class UserManager:
@@ -88,9 +93,9 @@ user_manager = UserManager()
 
 
 @chat.get('/get_history_chat/{friend_id}')
-async def get_last_messages(friend_id: int, token: str = Depends(decode_token), db: AsyncSession = Depends(get_session)):
-    chat_id = chat_id_generator(token['id'], friend_id)
-    messages = await get_history_chat(chat_id=chat_id, db=db)
+async def get_last_messages(friend_id: int, token: UserFToken = Depends(decode_token), db: AsyncSession = Depends(get_session)):
+    chat_id = chat_id_generator(token.id, friend_id)
+    messages = await get_history_chat(chat_value=chat_id, db=db)
     return JSONResponse(status_code=status.HTTP_200_OK, content=messages)
 
 
@@ -99,24 +104,24 @@ async def private_chat(user_id: int, friend_id: int, websocket: WebSocket, db: A
     if user_id == friend_id:
         raise WebSocketException(
             code=status.WS_1007_INVALID_FRAME_PAYLOAD_DATA, reason='Собі не можна написати')
-    chat_id = chat_id_generator(user_id, friend_id)
+    chat = chat_id_generator(user_id, friend_id)
 
-    await private_manager.register_websocket(chat_id=chat_id, user_id=user_id, friend_id=friend_id, websocket=websocket, db=db)
+    await private_manager.register_websocket(chat=chat, user_id=user_id, friend_id=friend_id, websocket=websocket, db=db)
     await websocket.accept()
 
     try:
         while True:
             data = await websocket.receive_text()
-            await private_manager.broadcast(chat_id=chat_id, message=data, sender_id=user_id, friend_id=friend_id, db=db, add_to_db=True, userwebsocket=websocket)
+            await private_manager.broadcast(chat=chat, message=data, sender_id=user_id, friend_id=friend_id, db=db, add_to_db=True)
 
     except WebSocketDisconnect:
-        private_manager.disconnect(chat_id, websocket)
+        private_manager.disconnect(chat, websocket)
 
 
 @chat.websocket('/public_chat')
 async def public_chat(websocket: WebSocket, user_id: int, db: AsyncSession = Depends(get_session)):
     if not user_id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
     try:
         await user_manager.connect(websocket, user_id, db)
         await websocket.accept()

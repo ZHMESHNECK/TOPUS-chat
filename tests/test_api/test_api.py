@@ -1,4 +1,5 @@
 from TASKER.core.security import decode_token
+from TASKER.api.schemas.users import UserFToken
 import pytest
 import httpx
 
@@ -47,8 +48,8 @@ class TestRegistration:
         response = await client.post('/auth/registration', json=data)
 
         assert response.status_code == 201
-        token = decode_token(response.cookies.get('TOPUS'))
-        assert token['username'] == data['username']
+        token: UserFToken = decode_token(response.cookies.get('TOPUS'))
+        assert token.username == data['username']
 
     # @pytest.mark.skip
     async def test_register_error(self, client: httpx.AsyncClient):
@@ -105,8 +106,8 @@ class TestLogin:
         }
         response = await client.post('/auth/login', json=login)
         assert response.status_code == 200
-        token = decode_token(response.cookies.get('TOPUS'))
-        assert token['username'] == login['username']
+        token: UserFToken = decode_token(response.cookies.get('TOPUS'))
+        assert token.username == login['username']
 
     # @pytest.mark.skip
 
@@ -250,3 +251,4 @@ class TestMainPage:
 
         response = await client.get('/')
         assert response.status_code == 200
+        

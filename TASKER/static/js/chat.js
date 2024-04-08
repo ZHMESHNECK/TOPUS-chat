@@ -32,15 +32,16 @@ let label_send_friend = document.querySelector('.send_friendship')
 let label_acc_dec_friend = document.querySelector('.request_friendship')
 let label_delete_friend = document.querySelector('.remove_friendship')
 // user_info
-const user = document.getElementById('user_info');
-const user_info = {
-    id: user.dataset.userId,
-    username: user.dataset.userUsername
-}
+/* 
+    notifications - Object
+    user - Object
+*/
+
 // open private websocket
 let privateWebSockets = new Map();
 
 
+// Текст повідомлення
 textarea.addEventListener('keydown', function (event) {
     if (event.key === 'Enter') {
         event.preventDefault();
@@ -49,13 +50,14 @@ textarea.addEventListener('keydown', function (event) {
 });
 
 
+// Надсилання повідомлення + підключення websocket
 function sendMessage() {
     let empty_chat = document.querySelector('.empty-chat')
     let friendId = document.querySelector('.selected_user').firstElementChild.attributes.getNamedItem('data-user-id').value
     const messageText = textarea.value;
     if (messageText.trim().length >= 1) {
         // Видаляємо label с порожньою історією
-        if (!empty_chat == null && !empty_chat.classList.contains('hidden')) { empty_chat.classList.add('hidden') }
+        if (empty_chat !== null && !empty_chat.classList.contains('hidden')) { empty_chat.classList.add('hidden') }
 
         const privateChatWebSocket = connectToPrivCHat(friendId);
         privateChatWebSocket.send(messageText);
@@ -64,7 +66,7 @@ function sendMessage() {
     textarea.value = '';
 }
 
-
+// Пошук
 searcharea.addEventListener('keydown', function (event) {
     if (event.key === 'Enter') {
         event.preventDefault();
@@ -123,7 +125,6 @@ function clickOnUser(option) {
     // 2 - accept / declain friend request
     let user = document.querySelectorAll('.info')
 
-
     user.forEach(function (element) {
         element.addEventListener('click', function (event) {
             let target = event.target;
@@ -132,9 +133,11 @@ function clickOnUser(option) {
             let user_id;
             let selectedElement = target.closest('.info');
             if (target.classList.contains('status')) {
-                user_id = target.previousElementSibling.attributes.getNamedItem('data-user-id').value
+                user_id = target.parentElement.firstElementChild.attributes.getNamedItem('data-user-id').value
             } else if (target.classList.contains('info')) {
                 user_id = target.firstElementChild.attributes.getNamedItem('data-user-id').value
+            } else if (target.classList.contains('noti_mess')) {
+                user_id = target.previousElementSibling.attributes.getNamedItem('data-user-id').value
             } else {
                 user_id = target.attributes.getNamedItem('data-user-id').value;
             }
@@ -181,7 +184,7 @@ async function fetchChatHistory(userId, option) {
         messageHistory.innerHTML = '';
 
 
-        // По дефолту ховаємо кнопки "add to friend" та "accept / declain"
+        // По дефолту ховаємо кнопки всі кнопки
         if (!label_send_friend.classList.contains('hidden')) {
             label_send_friend.classList.add('hidden')
         }
@@ -191,38 +194,22 @@ async function fetchChatHistory(userId, option) {
         if (!label_delete_friend.classList.contains('hidden')) {
             label_delete_friend.classList.add('hidden')
         }
+
         // console.log(user_data)
         // console.log(option)
         // console.log(user_data['is_friend'])
         // console.log(label_delete_friend)
-        if (option == 0) {
-            if (label_delete_friend.classList.contains('hidden')) {
-                label_delete_friend.classList.remove('hidden');
-                label_delete_friend.lastElementChild.value = user_data['id']
-            }
-        }
-        else if (option == 1) {
-            if (label_delete_friend.classList.contains('hidden') && user_data['is_friend'] == 'true') {
-                label_delete_friend.classList.remove('hidden');
-                label_delete_friend.lastElementChild.value = user_data['id']
-            }
-            else if (label_send_friend.classList.contains('hidden') && user_data['is_send_req'] == 'false') {
-                label_send_friend.classList.remove('hidden');
-                label_send_friend.lastElementChild.value = user_data['id']
-            } else if (user_data['is_send_req'] == 'true') {
-                if (label_acc_dec_friend.classList.contains('hidden')) {
-                    label_acc_dec_friend.classList.remove('hidden');
-                    label_acc_dec_friend.children[1].value = user_data['id']
-                    label_acc_dec_friend.children[2].value = user_data['id']
-                }
-            }
-        }
-        else if (option == 2) {
-            if (label_acc_dec_friend.classList.contains('hidden') && user_data['is_send_req'] == 'true') {
-                label_acc_dec_friend.classList.remove('hidden');
-                label_acc_dec_friend.children[1].value = user_data['id']
-                label_acc_dec_friend.children[2].value = user_data['id']
-            }
+
+        if (user_data['is_friend'] == 'true') {
+            label_delete_friend.classList.remove('hidden');
+            label_delete_friend.lastElementChild.value = user_data['id']
+        } else if (user_data['is_friend'] == 'false' && user_data['is_send_req'] == 'true') {
+            label_acc_dec_friend.classList.remove('hidden')
+            label_acc_dec_friend.children[1].value = user_data['id']
+            label_acc_dec_friend.children[2].value = user_data['id']
+        } else if (user_data['is_friend'] == 'false' && user_data['is_send_req'] == 'false') {
+            label_send_friend.classList.remove('hidden')
+            label_send_friend.lastElementChild.value = user_data['id']
         }
 
         if (data.length > 0) {
@@ -232,7 +219,7 @@ async function fetchChatHistory(userId, option) {
 
                 main_status.className = user_data['online'] == 'true' ? 'status on' : 'status off';
                 main_status.textContent = user_data['online'] == 'true' ? 'онлайн' : user_data['last_seen'];
-                if (message.sender_id == user_info['id']) {
+                if (message.sender_id == user['id']) {
                     let user_message = `<li class="i"><div class="head"><span class="name">Ви</span></div><div class="message">${message.message}</div></li>`;
                     messageHistory.insertAdjacentHTML('beforeend', user_message);
                 } else {
@@ -258,14 +245,29 @@ async function fetchChatHistory(userId, option) {
 
 let friendRequestClicked = false;
 
-// Блокуемо відправку запиту на 2 секудни
+// Блокуемо відправку запиту на 2 секунди
 friend_noti_btn.addEventListener('click', event => {
     if (!friendRequestClicked) {
         showFriendRequest();
         friendRequestClicked = true;
         setTimeout(() => {
             friendRequestClicked = false;
-        }, 2000);
+        }, 1500);
+    } else {
+        event.preventDefault();
+    }
+});
+
+// Блокуемо відправку запиту на 2 секунди
+chat_noti_btn.addEventListener('click', event => {
+    if (!friendRequestClicked) {
+        showMessRequest();
+        friendRequestClicked = true;
+        setTimeout(() => {
+            friendRequestClicked = false;
+        }, 1500);
+    } else {
+        event.preventDefault();
     }
 });
 
@@ -283,7 +285,30 @@ async function showFriendRequest() {
             // Очищаємо контейнер перед додаванням нових результатів
             searchResultsContainer.innerHTML = '';
             if (data.length > 0) {
-                createSerachResults(data);
+                createSerachResults(data, 'friend');
+                clickOnUser(2)
+            }
+        }
+    } catch (error) {
+        console.log(error)
+    }
+
+}
+
+// Запити нових повідомлень
+async function showMessRequest() {
+
+    try {
+        let response = await fetch('/noti/mess_noti', {
+            method: 'GET',
+        });
+
+        if (response.status == 200) {
+            const data = await response.json()
+            // Очищаємо контейнер перед додаванням нових результатів
+            searchResultsContainer.innerHTML = '';
+            if (data.length > 0) {
+                createSerachResults(data, 'mess');
                 clickOnUser(2)
             }
         }
@@ -295,9 +320,15 @@ async function showFriendRequest() {
 
 
 // Результат пошуку юзерів
-function createSerachResults(responseData) {
+function createSerachResults(responseData, option = null) {
     responseData.forEach(function (result) {
         let li = document.createElement('li');
+        if (option == 'friend') {
+            li.className = 'friend_req'
+        } else if (option == 'mess') {
+            li.className = 'mess_req'
+        }
+
         let divInfo = document.createElement('div');
         divInfo.className = 'info';
 
@@ -315,6 +346,14 @@ function createSerachResults(responseData) {
         let divStatus = document.createElement('div');
         divStatus.className = result.online ? 'status on' : 'status off';
         divStatus.textContent = result.online ? 'онлайн' : result.last_seen;
+        
+        // Перевіряємо на кількість не прочитанніх повідомлень від юзера
+        if (result.id in notifications['user_mes']) {
+            let divNotiMess = document.createElement('div');
+            divNotiMess.className = 'noti_mess';
+            divNotiMess.textContent = notifications['user_mes'][result.id];
+            divInfo.appendChild(divNotiMess)
+        }
         divInfo.appendChild(divStatus);
 
         li.appendChild(divInfo);
@@ -333,7 +372,7 @@ function createSerachResults(responseData) {
 
 
 function connetcToPubChat() {
-    const websocket = new WebSocket(`ws://localhost:8000/chat/public_chat?user_id=${user_info['id']}`)
+    const websocket = new WebSocket(`ws://localhost:8000/chat/public_chat?user_id=${user['id']}`)
 }
 
 function connectToPrivCHat(friend_id) {
@@ -341,7 +380,7 @@ function connectToPrivCHat(friend_id) {
     if (privateWebSockets.has(friend_id)) {
         websocket = privateWebSockets.get(friend_id);
     } else {
-        websocket = new WebSocket(`ws://localhost:8000/chat/private_chat/${user_info['id']}/${friend_id}`);
+        websocket = new WebSocket(`ws://localhost:8000/chat/private_chat/${user['id']}/${friend_id}`);
 
         websocket.onmessage = function (event) {
             handleIncomingMessage(event.data);
@@ -352,8 +391,10 @@ function connectToPrivCHat(friend_id) {
     return websocket;
 };
 
+
 function handleIncomingMessage(message) {
     let active_friendname_chat = document.querySelector('.info.selected_user').firstElementChild.attributes.getNamedItem('data-user-name').value
+    let active_friendname_id = document.querySelector('.info.selected_user').firstElementChild.attributes.getNamedItem('data-user-id').value
     let iserId_from_mes
     let mes_from_user
     try {
@@ -364,14 +405,21 @@ function handleIncomingMessage(message) {
         console.log(error)
     }
 
-    if (iserId_from_mes != null && iserId_from_mes != user_info['id']) {
-        let friend_message = `<li class="friend-with-a-SVAGina"><div class="head"><span class="name">${active_friendname_chat}</span></div><div class="message">${mes_from_user}</div></li>`;
-        messageHistory.insertAdjacentHTML('beforeend', friend_message);
-        messageHistory.scrollTop = messageHistory.scrollHeight;
-    } else if (iserId_from_mes != null && user_info['id'] == iserId_from_mes) {
-        let user_message = `<li class="i"><div class="head"><span class="name">Ви</span></div><div class="message">${mes_from_user}</div></li>`;
-        messageHistory.insertAdjacentHTML('beforeend', user_message);
-        messageHistory.scrollTop = messageHistory.scrollHeight;
+    // Якщо id sender or receiver в active_friendname_id - тоді показуємо повідомлення
+    if (active_friendname_id == iserId_from_mes || iserId_from_mes == user['id']) {
+        if (iserId_from_mes != null && iserId_from_mes != user['id']) {
+            let friend_message = `<li class="friend-with-a-SVAGina"><div class="head"><span class="name">${active_friendname_chat}</span></div><div class="message">${mes_from_user}</div></li>`;
+            messageHistory.insertAdjacentHTML('beforeend', friend_message);
+            messageHistory.scrollTop = messageHistory.scrollHeight;
+        } else if (iserId_from_mes != null && iserId_from_mes == user['id']) {
+            let user_message = `<li class="i"><div class="head"><span class="name">Ви</span></div><div class="message">${mes_from_user}</div></li>`;
+            messageHistory.insertAdjacentHTML('beforeend', user_message);
+            messageHistory.scrollTop = messageHistory.scrollHeight;
+        }
+    } else {
+        let da = chat_noti_btn.nextElementSibling.firstElementChild
+        let currentCount = parseInt(da.innerHTML.trim(), 10) + 1;
+        da.innerHTML = currentCount
     }
 }
 

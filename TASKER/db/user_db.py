@@ -6,11 +6,10 @@ from datetime import datetime
 from fastapi.responses import JSONResponse
 from fastapi import status
 from TASKER.core.security import hash_password, generate_token
-from TASKER.api.schemas.users import Login, StatusFriend
+from TASKER.api.schemas.users import Login, StatusFriend, UserFToken
 from TASKER.api.schemas.utils import SearchRequest
 from TASKER.core.utils import get_list_user
-from TASKER.db.models import UserDB, FriendshipDB, FriendRequestDB, NotificationDB
-from typing import Dict
+from TASKER.db.models import UserDB, FriendshipDB, FriendRequestDB, NotificationFriendReqDB
 import logging
 
 
@@ -95,7 +94,7 @@ async def user_send_request_friend(user_id: int, friend_id: int,  db: AsyncSessi
         await db.refresh(request)
 
         # Створюємо повідомлення
-        notification = NotificationDB(
+        notification = NotificationFriendReqDB(
             user_id=friend.id, friend_request_id=request.id)
         db.add(notification)
         await db.commit()
@@ -139,10 +138,11 @@ async def accept_friend_request(user_id: int, friend_id: int, db: AsyncSession):
         # Створюємо "Дружбу"
         await db.commit()
         await db.refresh(friend_request)
+        
         # Помічаемо повідомлення як прочитане
-        statement = select(NotificationDB).where(and_(
-            NotificationDB.user_id == user_id,
-            NotificationDB.friend_request_id == friend_request.id))
+        statement = select(NotificationFriendReqDB).where(and_(
+            NotificationFriendReqDB.user_id == user_id,
+            NotificationFriendReqDB.friend_request_id == friend_request.id))
         notification = await db.execute(statement)
         notification = notification.scalar_one_or_none()
         if notification:
@@ -179,9 +179,9 @@ async def declain_friend_request(user_id: int, friend_id: int, db: AsyncSession)
             return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content='Запит не знайдено')
 
         # Помічаемо повідомлення як прочитане
-        statement = select(NotificationDB).where(and_(
-            NotificationDB.user_id == user_id,
-            NotificationDB.friend_request_id == friend_request.id))
+        statement = select(NotificationFriendReqDB).where(and_(
+            NotificationFriendReqDB.user_id == user_id,
+            NotificationFriendReqDB.friend_request_id == friend_request.id))
         notification = await db.execute(statement)
         notification = notification.scalar_one_or_none()
         if not notification:
@@ -241,21 +241,21 @@ async def delete_friendship(username: str, friend_name: str, db: AsyncSession):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content='Помилка сервера')
 
 
-async def get_list_friends(token: Dict, db: AsyncSession):
+async def get_list_friends(token: UserFToken, db: AsyncSession):
     statement = select(FriendshipDB).filter(
-        FriendshipDB.user_id == token['id'])
+        FriendshipDB.user_id == token.id)
     friends = await db.execute(statement)
     friends = friends.scalars().all()
 
     return [friend.as_dict() for friend in friends]
 
 
-async def get_search(data: SearchRequest, token: dict, db: AsyncSession):
+async def get_search(data: SearchRequest, token: UserFToken, db: AsyncSession):
     statement_user = select(UserDB).filter(or_(
         UserDB.username.ilike(f'%{data.request}%'),
         UserDB.username.ilike(f'{data.request}%'),
         UserDB.username.ilike(f'%{data.request}')),
-        and_(UserDB.id != token['id'])).order_by('username').limit(15)
+        and_(UserDB.id != token.id)).order_by('username').limit(15)
 
     try:
         result_user = await db.execute(statement_user)

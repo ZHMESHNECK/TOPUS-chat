@@ -1,4 +1,5 @@
 from TASKER.core.security import decode_token
+from TASKER.api.schemas.users import UserFToken
 import pytest
 import httpx
 
@@ -44,7 +45,7 @@ class TestNoti:
 
         response = await client.post('/auth/registration', json=data)
         assert response.status_code == 201
-        token1 = decode_token(response.cookies['TOPUS'])['id']
+        token1: UserFToken = decode_token(response.cookies['TOPUS']).id
         await client.get('/user/add_friend/2')
 
         data2 = {
@@ -55,7 +56,7 @@ class TestNoti:
 
         response = await client.post('/auth/registration', json=data2)
         assert response.status_code == 201
-        token2 = decode_token(response.cookies['TOPUS'])['id']
+        token2 = decode_token(response.cookies['TOPUS']).id
         await client.get('/user/add_friend/2')
 
         data3 = {
@@ -66,7 +67,7 @@ class TestNoti:
 
         response = await client.post('/auth/registration', json=data3)
         assert response.status_code == 201
-        token3 = decode_token(response.cookies['TOPUS'])['id']
+        token3 = decode_token(response.cookies['TOPUS']).id
         await client.get('/user/add_friend/2')
 
         login = {
@@ -81,7 +82,6 @@ class TestNoti:
 
         response = response.json()
 
-        print(response)
-        assert response[0]['id'] == token1
+        assert response[0]['id'] == token3
         assert response[1]['id'] == token2
-        assert response[2]['id'] == token3
+        assert response[2]['id'] == token1

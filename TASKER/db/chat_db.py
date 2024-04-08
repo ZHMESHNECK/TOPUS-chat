@@ -2,13 +2,14 @@ from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.responses import JSONResponse
 from fastapi import WebSocketException, status
-from TASKER.db.models import Chat, ChatUser, MessageDB, NotificationDB
+from TASKER.api.schemas.chat import Chat
+from TASKER.db.models import ChatDB, ChatUserDB, MessageDB, NotificationMessageDB
 from typing import List
 import logging
 
 
-async def get_or_create_chat(chat_id: str, user_id: int, friend_id: int, db: AsyncSession):
-    statement = select(Chat).filter(Chat.chat == chat_id)
+async def get_or_create_chat(chat: str, user_id: int, friend_id: int, db: AsyncSession):
+    statement = select(ChatDB).filter(ChatDB.chat == chat)
     try:
         alrady_exists = await db.execute(statement)
         alrady_exists = alrady_exists.scalar_one_or_none()
@@ -16,35 +17,38 @@ async def get_or_create_chat(chat_id: str, user_id: int, friend_id: int, db: Asy
         if alrady_exists:
             return alrady_exists
         else:
-            new_chat = Chat(chat=chat_id)
+            new_chat = ChatDB(chat=chat)
             db.add(new_chat)
             await db.commit()
             await db.refresh(new_chat)
 
-            await add_user_to_chat(chat_id=new_chat.id, user_id=[user_id, friend_id], db=db)
+            check = await add_user_to_chat(chat_id=new_chat.id, user_id=[user_id, friend_id], db=db)
+            if not check:
+                return False
 
             return new_chat
     except Exception:
         logging.error(msg='get_or_create_chat', exc_info=True)
         await db.rollback()
-        return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content='')
+        return False
 
 
-async def add_user_to_chat(chat_id: str, user_id: List, db: AsyncSession):
-    user1 = ChatUser(chat_id=chat_id,  user_id=user_id[0])
-    user2 = ChatUser(chat_id=chat_id, user_id=user_id[1])
+async def add_user_to_chat(chat_id: int, user_id: List, db: AsyncSession):
+    user1 = ChatUserDB(chat_id=chat_id,  user_id=user_id[0])
+    user2 = ChatUserDB(chat_id=chat_id, user_id=user_id[1])
     try:
         db.add_all([user1, user2])
         await db.commit()
+        return True
     except Exception:
         await db.rollback()
         logging.error(msg='add_user_to_chat', exc_info=True)
-        return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content='')
+        return False
 
 
-async def save_message(chat_id, sender, message, friend_id, db: AsyncSession):
+async def save_message(chat: str, sender: int, message: str, friend_id: int, db: AsyncSession):
     try:
-        chat = await get_or_create_chat(chat_id=chat_id, user_id=sender, friend_id=friend_id, db=db)
+        chat: Chat = await get_or_create_chat(chat=chat, user_id=sender, friend_id=friend_id, db=db)
         if chat:
             db_message = MessageDB(
                 chat_id=chat.id,
@@ -54,7 +58,7 @@ async def save_message(chat_id, sender, message, friend_id, db: AsyncSession):
             db.add(db_message)
             await db.commit()
             await db.refresh(db_message)
-            await save_notification(user_id=friend_id, message=db_message.id, db=db)
+            await save_notification(chat=chat, user_id=friend_id, sender_id=sender, message=db_message.id, db=db)
         else:
             return JSONResponse(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -65,28 +69,30 @@ async def save_message(chat_id, sender, message, friend_id, db: AsyncSession):
             code=status.WS_1003_UNSUPPORTED_DATA)
 
 
-async def save_notification(user_id, message, db: AsyncSession):
+async def save_notification(chat: Chat, user_id: int, sender_id: int, message: int, db: AsyncSession):
     try:
-        db_message = NotificationDB(
+        db_message = NotificationMessageDB(
             user_id=user_id,
+            sender_id=sender_id,
+            chat_id=chat.id,
             message_id=message
         )
         db.add(db_message)
         await db.commit()
     except Exception:
         await db.rollback()
-        logging.error(msg='save message', exc_info=True)
+        logging.error(msg='save notification message', exc_info=True)
         return WebSocketException(
             code=status.WS_1003_UNSUPPORTED_DATA)
 
 
-async def get_history_chat(chat_id: str, db: AsyncSession):
-    statement = select(Chat).where(Chat.chat == chat_id)
+async def get_history_chat(chat_value: str, db: AsyncSession):
+    statement = select(ChatDB).where(ChatDB.chat == chat_value)
 
     chat = await db.execute(statement)
     chat = chat.scalar_one_or_none()
-    if chat:
 
+    if chat:
         statement2 = select(MessageDB).filter(
             MessageDB.chat_id == chat.id).limit(100)
         try:

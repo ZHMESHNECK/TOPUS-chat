@@ -3,6 +3,8 @@ from sqlalchemy.orm import Mapped, mapped_column, declarative_base, relationship
 from sqlalchemy import BigInteger, func, VARCHAR, DateTime, Integer, ForeignKey, String
 from datetime import datetime
 from TASKER.api.schemas.users import Role, StatusFriend
+
+
 Base = declarative_base()
 
 
@@ -20,7 +22,7 @@ class FriendshipDB(Base):
         BigInteger, ForeignKey('user.id'))
 
     user = relationship('UserDB', back_populates='friends',
-                        foreign_keys=[user_id])
+                        foreign_keys=[user_id], lazy='selectin')
     friend = relationship('UserDB', foreign_keys=[
                           friend_id], lazy='selectin')
 
@@ -50,26 +52,43 @@ class FriendRequestDB(Base):
         'UserDB', back_populates='received_requests', foreign_keys=[receiver_id], lazy='selectin')
 
     notifications = relationship(
-        'NotificationDB', back_populates='friend_request', cascade='all, delete-orphan')
+        'NotificationFriendReqDB', back_populates='friend_request', cascade='all, delete-orphan')
 
 
-class NotificationDB(Base):
-    __tablename__ = 'notification'
+class NotificationFriendReqDB(Base):
+    __tablename__ = 'notificationFriend'
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('user.id'))
     friend_request_id: Mapped[int] = mapped_column(
-        ForeignKey('friend_request.id'), nullable=True)
-    message_id: Mapped[int] = mapped_column(
-        ForeignKey('message.id'), nullable=True)
+        ForeignKey('friend_request.id'))
     is_read: Mapped[bool] = mapped_column(default=False)
 
     user = relationship(
-        'UserDB', back_populates='notifications', foreign_keys=[user_id], lazy='selectin')
+        'UserDB', back_populates='notifications_friend', foreign_keys=[user_id], lazy='selectin')
     friend_request = relationship(
         'FriendRequestDB', back_populates='notifications', foreign_keys=[friend_request_id], lazy='selectin')
+
+
+class NotificationMessageDB(Base):
+    __tablename__ = 'notificationMessage'
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('user.id'))
+    sender_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('user.id'))
+    chat_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('chat.id'))
+    message_id: Mapped[int] = mapped_column(
+        ForeignKey('message.id'))
+    is_read: Mapped[bool] = mapped_column(default=False)
+
+    user = relationship(
+        'UserDB', back_populates='notifications_message', foreign_keys=[user_id], lazy='selectin')
+    sender = relationship(
+        'UserDB', back_populates='notifications_message2', foreign_keys=[sender_id], lazy='selectin')
     message = relationship(
         'MessageDB', back_populates='notifications', foreign_keys=[message_id])
+    chat = relationship(
+        'ChatDB', primaryjoin='NotificationMessageDB.chat_id == ChatDB.id')
 
 
 class UserDB(Base):
@@ -83,15 +102,19 @@ class UserDB(Base):
         DateTime, nullable=False, server_default=func.now())
     role: Mapped[Role] = mapped_column(role_enum, default=Role.user.value)
 
-    chats = relationship('ChatUser', back_populates='user')
+    chats = relationship('ChatUserDB', back_populates='user')
     friends = relationship(
         'FriendshipDB', back_populates='user', foreign_keys='FriendshipDB.user_id', lazy='selectin')
     sent_requests = relationship(
         'FriendRequestDB', back_populates='sender', foreign_keys='FriendRequestDB.sender_id', lazy='selectin')
     received_requests = relationship(
         'FriendRequestDB', back_populates='receiver', foreign_keys='FriendRequestDB.receiver_id', lazy='selectin')
-    notifications = relationship(
-        'NotificationDB', back_populates='user', cascade='all, delete-orphan')
+    notifications_friend = relationship(
+        'NotificationFriendReqDB', back_populates='user', cascade='all, delete-orphan')
+    notifications_message = relationship(
+        'NotificationMessageDB', back_populates='user', foreign_keys='NotificationMessageDB.user_id', cascade='all, delete-orphan')
+    notifications_message2 = relationship(
+        'NotificationMessageDB', back_populates='sender', foreign_keys='NotificationMessageDB.sender_id', cascade='all, delete-orphan')
 
     def as_dict(self, fields=None):
         result = {}
@@ -110,23 +133,23 @@ class UserDB(Base):
         return result
 
 
-class Chat(Base):
+class ChatDB(Base):
     __tablename__ = 'chat'
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    chat: Mapped[str] = mapped_column(VARCHAR, index=True)
+    chat: Mapped[str] = mapped_column(VARCHAR, index=True, unique=True)
 
-    users = relationship('ChatUser', back_populates='chat')
+    users = relationship('ChatUserDB', back_populates='chat')
     messages = relationship('MessageDB', back_populates='chat')
 
 
-class ChatUser(Base):
+class ChatUserDB(Base):
     __tablename__ = 'chat_users'
 
     chat_id = mapped_column(Integer, ForeignKey('chat.id'), primary_key=True)
     user_id = mapped_column(Integer, ForeignKey('user.id'), primary_key=True)
 
-    chat = relationship('Chat', back_populates='users')
+    chat = relationship('ChatDB', back_populates='users')
     user = relationship('UserDB', back_populates='chats')
 
 
@@ -139,10 +162,10 @@ class MessageDB(Base):
     sender_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('user.id'))
     message: Mapped[str] = mapped_column(String)
 
-    chat = relationship('Chat', back_populates='messages')
+    chat = relationship('ChatDB', back_populates='messages')
     sender = relationship('UserDB')
     notifications = relationship(
-        'NotificationDB', back_populates='message', cascade='all, delete-orphan')
+        'NotificationMessageDB', back_populates='message', cascade='all, delete-orphan')
 
     def as_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}

@@ -1,5 +1,6 @@
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import and_, update
 from fastapi.responses import JSONResponse
 from fastapi import WebSocketException, status
 from TASKER.api.schemas.chat import Chat
@@ -105,3 +106,17 @@ async def get_history_chat(chat_value: str, db: AsyncSession):
             return JSONResponse(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content='')
     return None
+
+
+async def rm_all_noti(user_id: int, friend_id: int,  db: AsyncSession):
+    statement = update(NotificationMessageDB).where(and_(
+        NotificationMessageDB.user_id == user_id,
+        NotificationMessageDB.sender_id == friend_id,
+        NotificationMessageDB.is_read == False
+    )).values(is_read=True)
+
+    try:
+        await db.execute(statement)
+        await db.commit()
+    except:
+        logging.error(msg='rm_all_noti', exc_info=True)

@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block head %}
-<link rel="stylesheet" href="/TASKER/static/css/chat.css">
+<link rel="stylesheet" href="/TASKER/static/css/main_chat.css">
 {% endblock %}
 {% block content %}
 <button onclick="logout()">Встать та вийти</button>
@@ -9,96 +9,92 @@
 <p>{{ friends }}</p>
 <p>{{ notifications }}</p>
 
-<form id="public_chat">
-    <input type="text" id="public_message" name="public_message">
-    <br>
-    <button type="submit">Заглушка</button>
-</form>
-<div class="container">
-    <div class="tabs">
-        <input type="radio" id="radio-2" name="tabs" />
-        <label class="tab" for="radio-2">Чат<span class="notification">{{ notifications.unread_mess }}</span></label>
-        <input type="radio" id="radio-3" name="tabs" />
-        <label class="tab" for="radio-3">Друзі<span class="notification">{{ notifications.user_req }}</span></label>
-        <span class="glider"></span>
-    </div>
-</div>
-<div class="right_chat">
-    <div class="left-menu">
-        <form class="search" id="search">
-            <input placeholder="search..." type="search" name="" id="search_chat_req">
-            <input type="submit" value="">
-        </form>
-        <menu class="list-friends">
-            <div id="searchResults"></div>
-            <div class="text_friends">Друзі ↓</div>
+<div class="all">
+    {% include 'public_chat.html' %}
+    <div class="private_chat">
+        <div class="container">
+            <div class="tabs">
+                <input type="radio" id="radio-2" name="tabs" />
+                <label class="tab" for="radio-2">Чат<span class="notification">{{ notifications.unread_mess
+                        }}</span></label>
+                <input type="radio" id="radio-3" name="tabs" />
+                <label class="tab" for="radio-3">Друзі<span class="notification">{{ notifications.user_req
+                        }}</span></label>
+                <span class="glider"></span>
+            </div>
+        </div>
+        <div class="right_chat">
+            <div class="left-menu">
+                <form class="search" id="search">
+                    <input placeholder="search..." type="search" name="" id="search_chat_req">
+                    <input type="submit" value="">
+                </form>
+                <menu class="list-friends">
+                    <div id="searchResults"></div>
+                    <div class="text_friends">Друзі ↓</div>
 
-            {% for friend in friends %}
-            <li>
-                <div class="info">
-                    <div class="user" data-user-id="{{ friend.id }}" data-user-name="{{ friend.username }}"
-                        data-user-online="{{ friend.online }}" data-user-last_seen="{{ friend.last_seen }}"
-                        data-user-is-friend="true" data-user-send-req="false">{{ friend.username }}
-                    </div>
-                    {% if friend.online %}
-                    <div class="status on">онлайн
-                        {% if friend.id in notifications.user_mes %}
-                        <div class="noti_mess">{{ notifications.user_mes.friend.id }}</div>
-                        {% endif %}
-                    </div>
+                    {% for friend in friends %}
+                    <li>
+                        <div class="info">
+                            <div class="user" data-user-id="{{ friend.id }}" data-user-name="{{ friend.username }}"
+                                data-user-online="{{ friend.online }}" data-user-last_seen="{{ friend.last_seen }}"
+                                data-user-is-friend="true" data-user-send-req="false">{{ friend.username }}
+                            </div>
+                            {% if friend.id in notifications.user_mes %}
+                            <div class="noti_mess">{{ notifications.user_mes[friend.id] }}</div>
+                            {% endif %}
+                            {% if friend.online %}
+                            <div class="status on">онлайн</div>
+                            {% else %}
+                            <div class="status off">{{ friend.last_seen }}</div>
+                            {% endif %}
+                        </div>
+                    </li>
+                    <hr class="bottom_line">
                     {% else %}
-                    <div class="status off">{{ friend.last_seen }}
-                        {% if friend.id in notifications.user_mes %}
-                        <div class="noti_mess">{{ notifications.user_mes[friend.id] }}</div>
-                        {% endif %}
+                    <div class="empty_friends">Друзі відсутні</div>
+                    {% endfor %}
+                </menu>
+            </div>
+            <div class="chat" id="chat">
+                <div class="top">
+                    <div class="response_search hidden">
+                        <span class="error_message"></span>
+                        <span class="ok_message"></span>
                     </div>
-                    {% endif %}
+                    <div class="send_friendship hidden">
+                        <span class="label">Додати в друзі:</span>
+                        <button class="add-friend-btn" type="submit" name="add_friend" value="">+</button>
+                    </div>
+                    <div class="remove_friendship hidden">
+                        <span class="label">Видалити з друзів:</span>
+                        <button class="delete-friend-btn" type="submit" name="delete_friend" value="">-</button>
+                    </div>
+                    <div class="request_friendship hidden">
+                        <span class="label">Запит: </span>
+                        <button class="accept-friend-btn" type="submit" name="accept" value="">Додати</button>
+                        <button class="declain-friend-btn" type="submit" name="declain" value="">Відхилити</button>
+                    </div>
+                    <div class="info">
+                        <div class="name"></div>
+                        <div class="count">
+                            <div></div>
+                        </div>
+                    </div>
                 </div>
-            </li>
-            <hr class="bottom_line">
-            {% else %}
-            <div class="empty_friends">Друзі відсутні</div>
-            {% endfor %}
-        </menu>
-    </div>
-    <div class="chat" id="chat">
-        <div class="top">
-            <div class="response_search hidden">
-                <span class="error_message"></span>
-                <span class="ok_message"></span>
-            </div>
-            <div class="send_friendship hidden">
-                <span class="label">Додати в друзі:</span>
-                <button class="add-friend-btn" type="submit" name="add_friend" value="">+</button>
-            </div>
-            <div class="remove_friendship hidden">
-                <span class="label">Видалити з друзів:</span>
-                <button class="delete-friend-btn" type="submit" name="delete_friend" value="">-</button>
-            </div>
-            <div class="request_friendship hidden">
-                <span class="label">Запит: </span>
-                <button class="accept-friend-btn" type="submit" name="accept" value="">Додати</button>
-                <button class="declain-friend-btn" type="submit" name="declain" value="">Відхилити</button>
-            </div>
-            <div class="info">
-                <div class="name"></div>
-                <div class="count">
-                    <div></div>
+                <ul class="messages">
+                </ul>
+                <div class="write-form">
+                    <textarea placeholder="Type your message" name="message_text" id="texxt" rows="2"></textarea>
+                    <span class="send" id="">Send</span>
                 </div>
             </div>
-        </div>
-        <ul class="messages">
-        </ul>
-        <div class="write-form">
-            <textarea placeholder="Type your message" name="message_text" id="texxt" rows="2"></textarea>
-            <span class="send" id="">Send</span>
         </div>
     </div>
 </div>
-<!-- <div class="hidden" id="user_info" data-user-id="{{ user.id }}" data-user-username="{{ user.username }}"></div> -->
 <script>
-    const notifications = JSON.parse('{{ notifications | tojson | safe }}')
-    const user = JSON.parse('{{ user | tojson | safe }}')
+    let notifications = JSON.parse('{{ notifications | tojson | safe }}')
+    let user = JSON.parse('{{ user | tojson | safe }}')
 </script>
 <script src="/TASKER/static/js/chat.js"></script>
 {% endblock %}

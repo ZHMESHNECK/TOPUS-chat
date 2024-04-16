@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisco
 from TASKER.core.security import chat_id_generator, decode_token
 from TASKER.core.config import get_session
 from TASKER.api.schemas.users import UserFToken
-from TASKER.db.chat_db import get_history_chat, get_or_create_chat, save_message
+from TASKER.db.chat_db import get_history_chat, get_or_create_chat, rm_all_noti, save_message
 from TASKER.db.user_db import set_user_status
 from typing import Dict, List
 
@@ -23,7 +23,8 @@ class PrivateManager:
     """ Менеджер для приватних повідомлень
     """
 
-    def __init__(self):
+    def __init__(self, user_manage: 'UserManager'):
+        self.user_manager = user_manager
         self.connections: Dict[str, List[WebSocket]] = {}
 
     async def register_websocket(self, chat: str, user_id: int, friend_id: int, websocket: WebSocket, db: AsyncSession) -> None:
@@ -44,9 +45,18 @@ class PrivateManager:
         if add_to_db:
             mes = await self.save_message_to_db(chat=chat, message=message, sender=sender_id, friend_id=friend_id, db=db)
             if mes:
-                raise WebSocketException(code=status.WS_1003_UNSUPPORTED_DATA, reason='Помилка при збереженні повідомлення')
+                raise WebSocketException(
+                    code=status.WS_1003_UNSUPPORTED_DATA, reason='Помилка при збереженні повідомлення')
+        # Відправка всім підключенним юзерам
         for websocket in self.connections[chat]:
-            await websocket.send_text(f'{sender_id}:{message}')
+            await websocket.send_text(f'private:{sender_id}:{message}')
+
+        # Якщо юзер онлайн но не підключен до чату
+        if len(self.connections[chat]) < 2:
+            friend_socket = self.user_manager.active_connections.get(
+                friend_id, None)
+            if friend_socket not in self.connections[chat]:
+                await friend_socket.send_text(f'private:{sender_id}:{message}')
 
     def disconnect(self, chat, websocket: WebSocket):
         chat: list = self.connections.get(chat)
@@ -63,20 +73,16 @@ class UserManager:
     """
 
     def __init__(self):
-        self.active_connections: List[WebSocket] = []
+        self.active_connections: Dict[int, WebSocket] = {}  # id
 
     async def connect(self, websocket: WebSocket, user_id: int, db: AsyncSession):
-        self.active_connections.append(
-            {'websocket': websocket, 'user_id': user_id})
+        self.active_connections[user_id] = websocket
         # Оновлення статусу користувача на "онлайн" в базі даних
         await self.update_user_status(user_id=user_id, online=True, db=db)
 
     async def disconnect(self, websocket: WebSocket, user_id: int, db: AsyncSession):
         # Видалення з'єднання з активних з'єднань
-        for connection in self.active_connections:
-            if connection['websocket'] == websocket and connection['user_id'] == user_id:
-                self.active_connections.remove(connection)
-                break
+        self.active_connections.pop(user_id, None)
         # Оновлення статусу користувача на "офлайн" в базі даних
         await self.update_user_status(user_id=user_id, online=False, db=db)
 
@@ -88,14 +94,15 @@ class UserManager:
             await connection['websocket'].send_text(message)
 
 
-private_manager = PrivateManager()
 user_manager = UserManager()
+private_manager = PrivateManager(user_manager)
 
 
 @chat.get('/get_history_chat/{friend_id}')
 async def get_last_messages(friend_id: int, token: UserFToken = Depends(decode_token), db: AsyncSession = Depends(get_session)):
     chat_id = chat_id_generator(token.id, friend_id)
     messages = await get_history_chat(chat_value=chat_id, db=db)
+    await rm_all_noti(user_id=token.id, friend_id=friend_id, db=db)
     return JSONResponse(status_code=status.HTTP_200_OK, content=messages)
 
 
@@ -112,7 +119,7 @@ async def private_chat(user_id: int, friend_id: int, websocket: WebSocket, db: A
     try:
         while True:
             data = await websocket.receive_text()
-            await private_manager.broadcast(chat=chat, message=data, sender_id=user_id, friend_id=friend_id, db=db, add_to_db=True)
+            await private_manager.broadcast(chat=chat, message=data, sender_id=user_id, friend_id=friend_id, db=db, add_to_db=False)
 
     except WebSocketDisconnect:
         private_manager.disconnect(chat, websocket)

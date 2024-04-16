@@ -5,9 +5,8 @@ from typing import List
 # Поля які потрібно повернути
 fields = ['id', 'username', 'online', 'last_seen']
 
+
 # search
-
-
 def get_list_user(result_user: List[UserDB], token: UserFToken):
     list_user = []
     for user in result_user:

@@ -23,9 +23,9 @@ formlogin.addEventListener('submit', (e) => {
 
         } else {
             let response = JSON.parse(xhr.responseText);
-            if (response.detail) {
+            if (response) {
                 document.getElementById('signInError').style.display = "block";
-                document.getElementById('signInError').textContent = response.detail;
+                document.getElementById('signInError').textContent = response;
             } else {
                 document.getElementById('signInError').style.display = "none";
             }

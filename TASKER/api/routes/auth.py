@@ -9,7 +9,7 @@ auth = APIRouter(prefix='/auth', tags=['Authentication'])
 
 
 @auth.get('/login')
-async def login(request: Request):
+async def get_login(request: Request):
     return templates.TemplateResponse('login_reg.html', {'request': request})
 
 

@@ -126,7 +126,6 @@ class UserDB(Base):
             # Перевіряємо, чи значення є об'єктом datetime
             if isinstance(value, datetime):
                 # Конвертуємо об'єкт datetime у рядок
-                # result[column.name] = value.strftime("%Y-%m-%d %H:%M")
                 result[column.name] = value.strftime("%d-%m-%y %H:%M")
             else:
                 result[column.name] = value
@@ -160,6 +159,7 @@ class MessageDB(Base):
     chat_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey('chat.id'), index=True)
     sender_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('user.id'))
+    sender_username: Mapped[str] = mapped_column(VARCHAR, nullable=True)
     message: Mapped[str] = mapped_column(String)
 
     chat = relationship('ChatDB', back_populates='messages')
@@ -168,4 +168,12 @@ class MessageDB(Base):
         'NotificationMessageDB', back_populates='message', cascade='all, delete-orphan')
 
     def as_dict(self):
-        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        fields = ['sender_id', 'sender_username', 'message']
+        result = {}
+        columns = self.__table__.columns
+        if fields:
+            columns = [c for c in columns if c.name in fields]
+        for column in columns:
+            value = getattr(self, column.name)
+            result[column.name] = value
+        return result

@@ -1,13 +1,12 @@
 from TASKER.core.security import decode_token
 from TASKER.api.schemas.users import UserFToken
-import pytest
+# import pytest
 import httpx
 
 
 """ Default user DB
 1)
     id: 1
-
     login = {
         "username" : "TestUserDB",
         "password" : "12345678" - func
@@ -15,14 +14,13 @@ import httpx
     }
 2)
     id: 2
-    
+
     login2 = {
         "username" : "TestUserDB2",
         "password" : "12345678" - func
     role - default - "user"
     }
 
-    @fixture defaults_friendship
 3)
     username - TestUserDBFriend3  - friend with 4
     password - hash_password("12345678") - func
@@ -149,6 +147,7 @@ class TestFriend:
         }
 
         response = await client.post('/auth/login', json=login)
+        token: UserFToken = decode_token(response.cookies.get('TOPUS'))
         assert response.status_code == 200
         response = await client.get('/user/add_friend/2')
         assert response.status_code == 200
@@ -158,7 +157,7 @@ class TestFriend:
         }
         response2 = await client.post('/auth/login', json=login2)
         assert response2.status_code == 200
-        response2 = await client.get(f'/user/declain_friend/1')
+        response2 = await client.get(f'/user/declain_friend/{token.id}')
         assert response2.status_code == 200
         assert response2.json() == 'Запит відхилено'
 
@@ -184,9 +183,10 @@ class TestFriend:
             "username": "TestUserDB",
             "password": "12345678",
         }
-        await client.post('/auth/login', json=login)
+        response = await client.post('/auth/login', json=login)
+        token: UserFToken = decode_token(response.cookies.get('TOPUS'))
 
-        response = await client.get('/user/add_friend/1')
+        response = await client.get(f'/user/add_friend/{token.id}')
 
         assert response.status_code == 400
         assert response.json() == 'Не можна відправити собі запит'
@@ -198,9 +198,10 @@ class TestFriend:
             "username": "TestUserDB",
             "password": "12345678",
         }
-        await client.post('/auth/login', json=login)
+        response = await client.post('/auth/login', json=login)
+        token: UserFToken = decode_token(response.cookies.get('TOPUS'))
 
-        response = await client.get('/user/accept_friend/1')
+        response = await client.get(f'/user/accept_friend/{token.id}')
 
         assert response.status_code == 400
         assert response.json() == 'Не можна прийняти свій запит'
@@ -251,4 +252,3 @@ class TestMainPage:
 
         response = await client.get('/')
         assert response.status_code == 200
-        

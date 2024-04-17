@@ -1,6 +1,6 @@
-from typing import Any, Dict, List
 from pydantic import BaseModel, Field, field_validator
 from datetime import datetime, timezone
+from typing import Any, Dict
 from enum import Enum
 
 
@@ -64,7 +64,8 @@ class Registration(BaseModel):
         if v == password:
             return values
         raise ValueError('Паролі не збігаються')
-    
+
+
 class UserFToken(BaseModel):
     exp: datetime
     id: int

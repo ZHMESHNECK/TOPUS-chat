@@ -40,7 +40,6 @@ async def override_session():
 topus.dependency_overrides[get_session] = override_session
 
 
-@pytest.fixture(scope='session')
 async def default_friendship():
     try:
         async with async_session_maker() as session:
@@ -102,6 +101,7 @@ async def lifespan():
     async with engine_test.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await defaults_user()
+    await default_friendship()
     yield
     async with engine_test.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)

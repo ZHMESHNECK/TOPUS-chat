@@ -1,5 +1,6 @@
 const searchResultsContainer = document.getElementById('searchResults');
 const messageHistory = document.querySelector('.messages');
+const PublicmessageHistory = document.querySelector('.pub_messages-content');
 const responseDiv = document.querySelector('.response_search');
 // notification
 const chat_noti_btn = document.getElementById('radio-2')
@@ -12,7 +13,9 @@ const sendButton = document.querySelector('.write-form .send');
 sendButton.addEventListener('click', sendMessage);
 const textarea = document.getElementById('texxt');
 // public chat
-// document.getElementById('public_chat').addEventListener('submit', sendMessage);
+const sendPubMes = document.querySelector('.message-box .message-submit')
+sendPubMes.addEventListener('click', sendMessagePub);
+const pubtextarea = document.getElementById('pub_textarea');
 // search
 const searcharea = document.getElementById('search_chat_req');
 searcharea.addEventListener('submit', getSearch);
@@ -37,15 +40,23 @@ let label_delete_friend = document.querySelector('.remove_friendship')
     user - Object
 */
 
-// Відкриті private websocket
+// Відкриті private/загальні websocket
 let privateWebSockets = new Map();
+let publicWebSockets = new Map();
 
 
-// Текст повідомлення
+// Текст повідомлення приватного чату
 textarea.addEventListener('keydown', function (event) {
     if (event.key === 'Enter') {
         event.preventDefault();
         sendMessage();
+    }
+});
+// Текст повідомлення загального чату
+pubtextarea.addEventListener('keydown', function (event) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        sendMessagePub();
     }
 });
 
@@ -62,8 +73,17 @@ function sendMessage() {
         const privateChatWebSocket = connectToPrivCHat(friendId);
         privateChatWebSocket.send(messageText);
     };
-
     textarea.value = '';
+}
+
+// Надсилання повідомлення до загального чату
+function sendMessagePub() {
+    const messageText = pubtextarea.value;
+    if (messageText.trim().length >= 1) {
+        const sendpubWebSocket = connetcToPubChat();
+        sendpubWebSocket.send(messageText);
+    }
+    pubtextarea.value = '';
 }
 
 
@@ -99,7 +119,7 @@ async function getSearch(e) {
             if (response.status == 200) {
                 const responseData = await response.json();
 
-                createSerachResults(responseData)
+                createSearchResults(responseData)
                 clickOnUser()
 
             } else {
@@ -296,7 +316,7 @@ async function showFriendRequest() {
             // Очищаємо контейнер перед додаванням нових результатів
             searchResultsContainer.innerHTML = '';
             if (data.length > 0) {
-                createSerachResults(data, 'friend');
+                createSearchResults(data, 'friend');
                 clickOnUser()
             }
         }
@@ -319,7 +339,7 @@ async function showMessRequest() {
             // Очищаємо контейнер перед додаванням нових результатів
             searchResultsContainer.innerHTML = '';
             if (data.length > 0) {
-                createSerachResults(data, 'mess');
+                createSearchResults(data, 'mess');
                 clickOnUser()
             }
         }
@@ -331,7 +351,7 @@ async function showMessRequest() {
 
 
 // Результат пошуку юзерів
-function createSerachResults(responseData, option = null) {
+function createSearchResults(responseData, option = null) {
     responseData.forEach(function (result) {
         let li = document.createElement('li');
         if (option == 'friend') {
@@ -372,29 +392,50 @@ function createSerachResults(responseData, option = null) {
 }
 
 
-// function sendPubMessage(e) {
-//     e.preventDefault();
-//     console.log(e.target)
-
-//     const message = document.getElementById('public_message')
-//     console.log(message)
-// }
-
-
+// Online | Offline
 function connetcToPubChat() {
-    const pubwebsocket = new WebSocket(`ws://localhost:8000/chat/public_chat?user_id=${user['id']}`)
-    pubwebsocket.onmessage = function (e) {
-        try {
-            let parts = e.data.split(':', 3);
-            if (parts[0] == 'private') {
-                handleIncomingMessage(parts);
+    let pubwebsocket;
+    if (publicWebSockets.has(user['id'])) {
+        pubwebsocket = publicWebSockets.get(user['id']);
+    } else {
+        showPubHistory();
+        pubwebsocket = new WebSocket(`ws://localhost:8000/chat/public_chat/${user['id']}/${user['username']}`);
+        publicWebSockets.set(user['id'], pubwebsocket);
+        pubwebsocket.onmessage = function (e) {
+            try {
+                const jsonData = JSON.parse(e.data);
+                let user = document.querySelectorAll(`[data-user-id="${jsonData.user_id}"]`)
+                user.forEach(function (el) {
+                    console.log(el)
+                    if (jsonData.online) {
+                        if (el.nextElementSibling.classList.contains('off')) {
+                            el.nextElementSibling.classList.remove('off')
+                            el.nextElementSibling.classList.add('on')
+                            el.nextElementSibling.innerHTML = 'Онлайн'
+                        }
+                    } else {
+                        if (!el.nextElementSibling.classList.contains('off')) {
+                            el.nextElementSibling.classList.remove('on')
+                            el.nextElementSibling.classList.add('off')
+                            el.nextElementSibling.innerHTML = get_date()
+                        }
+                    }
+                })
+
+            } catch (error) {
+                if (typeof e.data === 'string') {
+                    let parts = e.data.split(':', 3);
+                    if (parts.length === 3 && parts[0] === 'public') {
+                        handlePublickIncomingMessage(parts);
+                    }
+                }
             }
-        } catch (error) {
-            console.log(error)
-        }
+        };
     }
+    return pubwebsocket;
 }
 
+// 
 function connectToPrivCHat(friend_id) {
     let websocket;
     if (privateWebSockets.has(friend_id)) {
@@ -419,7 +460,44 @@ function connectToPrivCHat(friend_id) {
 };
 
 
-// Повідомлення з websocket
+// Історія загального чату
+async function showPubHistory() {
+    let response = await fetch('/chat/get_history_public', {
+        method: 'GET',
+    });
+    let error = document.querySelector('.pub_messages-content .error_chat')
+    if (!error.classList.contains('hidden')) {
+        error.classList.add('hidden')
+    }
+    const data = await response.json();
+
+    if (response.status == 200) {
+        data.forEach((message) => {
+            try {
+                username_from_mess = message.sender_username;
+                mes_from_user = message.message
+            } catch (error) {
+                console.log(error);
+                return;
+            }
+            let isFriendMessage = username_from_mess != null && username_from_mess == user['username'];
+            let messageSender = isFriendMessage ? 'Ви' : username_from_mess;
+            let messageClass = isFriendMessage ? 'pub_msg_self' : 'pub_msg';
+            let messageTextClass = isFriendMessage ? 'message message-personal new' : 'message new';
+            let messageHTML = `<div class='${messageClass}'><div class='head_pub'>${messageSender}</div><div class='${messageTextClass}'>${mes_from_user}</div></div>`;
+            PublicmessageHistory.insertAdjacentHTML('beforeend', messageHTML)
+        })
+        PublicmessageHistory.scrollTop = PublicmessageHistory.scrollHeight;
+
+    } else {
+        if (error.classList.contains('hidden')) {
+            error.classList.remove('hidden')
+            error.innerHTML = data
+        }
+    }
+}
+
+// Повідомлення з приватного websocket
 function handleIncomingMessage(message) {
 
     const selectedUserElement = document.querySelector('.info.selected_user');
@@ -440,10 +518,10 @@ function handleIncomingMessage(message) {
 
     // Якщо id sender or receiver в active_friendname_id - тоді показуємо повідомлення
     if (active_friendname_id == userId_from_mess || userId_from_mess == user['id']) {
-        const isFriendMessage = userId_from_mess != null && userId_from_mess != user['id'];
-        const messageSender = isFriendMessage ? active_friendname_chat : 'Ви';
-        const messageClass = isFriendMessage ? 'friend-with-a-SVAGina' : 'i';
-        const messageHTML = `<li class="${messageClass}"><div class="head"><span class="name">${messageSender}</span></div><div class="message">${mes_from_user}</div></li>`;
+        let isFriendMessage = userId_from_mess != null && userId_from_mess != user['id'];
+        let messageSender = isFriendMessage ? active_friendname_chat : 'Ви';
+        let messageClass = isFriendMessage ? 'friend-with-a-SVAGina' : 'i';
+        let messageHTML = `<li class="${messageClass}"><div class="head"><span class="name">${messageSender}</span></div><div class="message">${mes_from_user}</div></li>`;
         messageHistory.insertAdjacentHTML('beforeend', messageHTML);
         messageHistory.scrollTop = messageHistory.scrollHeight;
     } else {
@@ -468,6 +546,23 @@ function handleIncomingMessage(message) {
             }
         })
     }
+}
+
+// Повідомлення для загального чату
+function handlePublickIncomingMessage(message) {
+    try {
+        [_, username_from_mess, mes_from_user] = message;
+    } catch (error) {
+        console.log(error);
+        return;
+    }
+    let isFriendMessage = username_from_mess != null && username_from_mess == user['username'];
+    let messageSender = isFriendMessage ? 'Ви' : username_from_mess;
+    let messageClass = isFriendMessage ? 'pub_msg_self' : 'pub_msg';
+    let messageTextClass = isFriendMessage ? 'message message-personal new' : 'message new';
+    let messageHTML = `<div class='${messageClass}'><div class='head_pub'>${messageSender}</div><div class='${messageTextClass}'>${mes_from_user}</div></div>`;
+    PublicmessageHistory.insertAdjacentHTML('beforeend', messageHTML);
+    PublicmessageHistory.scrollTop = PublicmessageHistory.scrollHeight;
 }
 
 // Відправити запит в друзі
@@ -576,4 +671,15 @@ async function logout() {
         location.assign('/auth/login');
     }
     return false
+}
+
+function get_date(){
+    let currentDate = new Date();
+    let day = currentDate.getDate().toString().padStart(2, "0");
+    let month = (currentDate.getMonth() + 1).toString().padStart(2, "0");
+    let year = currentDate.getFullYear().toString().substr(-2);
+    let hours = currentDate.getHours().toString().padStart(2, "0");
+    let minutes = currentDate.getMinutes().toString().padStart(2, "0");
+    let formattedDate = `${day}-${month}-${year} ${hours}:${minutes}`;
+    return formattedDate
 }

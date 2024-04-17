@@ -1,12 +1,25 @@
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, update
-from fastapi.responses import JSONResponse
 from fastapi import WebSocketException, status
 from TASKER.api.schemas.chat import Chat
 from TASKER.db.models import ChatDB, ChatUserDB, MessageDB, NotificationMessageDB
-from typing import List
+from typing import List, Optional
 import logging
+
+
+async def get_public_chat_id(db: AsyncSession):
+    statement = select(ChatDB).where(ChatDB.chat == 'public')
+    chat_id = await db.execute(statement)
+    chat_id = chat_id.scalar_one_or_none()
+    if chat_id:
+        return chat_id
+    else:
+        chat = ChatDB(chat='public')
+        db.add(chat)
+        await db.commit()
+        await db.refresh(chat)
+        return chat
 
 
 async def get_or_create_chat(chat: str, user_id: int, friend_id: int, db: AsyncSession):
@@ -35,7 +48,7 @@ async def get_or_create_chat(chat: str, user_id: int, friend_id: int, db: AsyncS
 
 
 async def add_user_to_chat(chat_id: int, user_id: List, db: AsyncSession):
-    user1 = ChatUserDB(chat_id=chat_id,  user_id=user_id[0])
+    user1 = ChatUserDB(chat_id=chat_id, user_id=user_id[0])
     user2 = ChatUserDB(chat_id=chat_id, user_id=user_id[1])
     try:
         db.add_all([user1, user2])
@@ -47,10 +60,13 @@ async def add_user_to_chat(chat_id: int, user_id: List, db: AsyncSession):
         return False
 
 
-async def save_message(chat: str, sender: int, message: str, friend_id: int, db: AsyncSession):
+async def save_message(sender: int, message: str, db: AsyncSession, username: Optional[str] = None, friend_id: Optional[int] = None, chat: Optional[str] = None, is_private=True):
     try:
-        chat: Chat = await get_or_create_chat(chat=chat, user_id=sender, friend_id=friend_id, db=db)
-        if chat:
+        if is_private:
+            chat: Chat = await get_or_create_chat(chat=chat, user_id=sender, friend_id=friend_id, db=db)
+        else:
+            chat: Chat = await get_public_chat_id(db)
+        if chat and is_private:
             db_message = MessageDB(
                 chat_id=chat.id,
                 sender_id=sender,
@@ -60,14 +76,25 @@ async def save_message(chat: str, sender: int, message: str, friend_id: int, db:
             await db.commit()
             await db.refresh(db_message)
             await save_notification(chat=chat, user_id=friend_id, sender_id=sender, message=db_message.id, db=db)
+
+        elif chat and not is_private:
+            db_message = MessageDB(
+                chat_id=chat.id,
+                sender_id=sender,
+                sender_username=username,
+                message=message
+            )
+            db.add(db_message)
+            await db.commit()
+
         else:
-            return JSONResponse(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return False
+
+        return True
     except Exception:
         await db.rollback()
         logging.error(msg='save message', exc_info=True)
-        return WebSocketException(
-            code=status.WS_1003_UNSUPPORTED_DATA)
+        return False
 
 
 async def save_notification(chat: Chat, user_id: int, sender_id: int, message: int, db: AsyncSession):
@@ -103,12 +130,35 @@ async def get_history_chat(chat_value: str, db: AsyncSession):
         except:
             await db.rollback()
             logging.error(msg='get_history_chat', exc_info=True)
-            return JSONResponse(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content='')
+            return False
     return None
 
 
-async def rm_all_noti(user_id: int, friend_id: int,  db: AsyncSession):
+async def get_public_history(db: AsyncSession):
+    statement = select(ChatDB).where(ChatDB.chat == 'public')
+    try:
+        pub_chat = await db.execute(statement)
+        pub_chat = pub_chat.scalar_one_or_none()
+
+        if not pub_chat:
+            chat = ChatDB(chat='public')
+            db.add(chat)
+            await db.commit()
+            await db.refresh(chat)
+
+        statement2 = select(MessageDB).filter(
+            MessageDB.chat_id == pub_chat.id).limit(100)
+        pub_history = await db.execute(statement2)
+        pub_history = pub_history.scalars().all()
+        return [msg.as_dict() for msg in pub_history]
+
+    except:
+        await db.rollback()
+        logging.error(msg='get_public_history', exc_info=True)
+        return False
+
+
+async def rm_all_noti(user_id: int, friend_id: int, db: AsyncSession):
     statement = update(NotificationMessageDB).where(and_(
         NotificationMessageDB.user_id == user_id,
         NotificationMessageDB.sender_id == friend_id,

@@ -57,7 +57,7 @@ async def user_login(data: Login, db: AsyncSession):
     return response
 
 
-async def user_send_request_friend(user_id: int, friend_id: int,  db: AsyncSession):
+async def user_send_request_friend(user_id: int, friend_id: int, db: AsyncSession):
     if user_id == friend_id:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST, content='Не можна відправити собі запит')
@@ -138,7 +138,7 @@ async def accept_friend_request(user_id: int, friend_id: int, db: AsyncSession):
         # Створюємо "Дружбу"
         await db.commit()
         await db.refresh(friend_request)
-        
+
         # Помічаемо повідомлення як прочитане
         statement = select(NotificationFriendReqDB).where(and_(
             NotificationFriendReqDB.user_id == user_id,

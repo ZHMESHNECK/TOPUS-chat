@@ -145,7 +145,8 @@
     transform: scale(0);
     transform-origin: 0 0;
     animation: bounce 500ms linear both;
-    color: white
+    color: white;
+    margin-bottom: 5px;
 }
 
 .pub_messages .message.loading::before {
@@ -214,7 +215,7 @@
     flex: 0 1 40px;
     width: 100%;
     background: rgba(0, 0, 0, 0.3);
-    padding: 10px;
+    padding: 5px;
     position: relative;
 }
 
@@ -225,7 +226,7 @@
     resize: none;
     color: rgba(255, 255, 255, .7);
     font-size: 11px;
-    height: 17px;
+    height: 25px;
     margin: 0;
     padding-right: 20px;
     width: 265px;

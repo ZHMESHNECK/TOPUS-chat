@@ -72,3 +72,9 @@ def get_list_message_req(result_user: List[UserDB], token: UserFToken):
 
         list_user.append(user_dict)
     return list_user
+
+
+def send_message_json(type: str, sender: str | int, message: str):
+    return {'type': type,
+            'user': sender,
+            'message': message}

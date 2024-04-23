@@ -68,7 +68,7 @@ class TestChat:
 
         with client.websocket_connect('/chat/private_chat/1/2') as websocket:
             websocket.send_text('Hi, Private!')
-            ans = websocket.receive_text().split(':', 2)[2]
+            ans = websocket.receive_json()['message']
             assert ans == 'Hi, Private!'
             websocket.close()
 
@@ -109,14 +109,14 @@ class TestChat:
         # юзер 1 надсилає повідомлення юзеру 2
         with client.websocket_connect('/chat/private_chat/1/2') as websocket:
             websocket.send_text('Юзер 1 пишет привет')
-            ans = websocket.receive_text().split(':', 2)[2]
+            ans = websocket.receive_json()['message']
             assert ans == 'Юзер 1 пишет привет'
             websocket.close()
 
         # юзер 2 надсилає повідомлення юзеру 1
         with client.websocket_connect('/chat/private_chat/2/1') as websocket:
             websocket.send_text('Пока')
-            ans = websocket.receive_text().split(':', 2)[2]
+            ans = websocket.receive_json()['message']
             assert ans == 'Пока'
             websocket.close()
 
@@ -147,10 +147,10 @@ class TestChat:
         # юзер 3 надсилає повідомлення юзеру 1
         with client.websocket_connect(f'/chat/private_chat/{token.id}/{token2.id}') as websocket:
             websocket.send_text('Юзер 3 пише привіт юзеру 4')
-            websocket.receive_text()
+            websocket.receive_json()['message']
             await sleep(1)
-            websocket.send_text('це тест історії')
-            websocket.receive_text()
+            websocket.send_json('це тест історії')
+            websocket.receive_json()['message']
             websocket.close()
 
         response = client.get(f'/chat/get_history_chat/{token.id}')
@@ -184,12 +184,16 @@ class TestPublicChat:
 
         with client.websocket_connect(f'/chat/public_chat/{token.id}/{token.username}') as websocket:
             websocket.send_text('паблик месседж')
-            ans = websocket.receive_text()
-            assert ans == 'public:TestUserDB:паблик месседж'
+            ans = websocket.receive_json()
+            assert ans == {'type': 'public',
+                           'user': 'TestUserDB',
+                           'message': 'паблик месседж'}
             await sleep(1)
             websocket.send_text('окей')
-            ans = websocket.receive_text()
-            assert ans == 'public:TestUserDB:окей'
+            ans = websocket.receive_json()
+            assert ans == {'type': 'public',
+                           'user': 'TestUserDB',
+                           'message': 'окей'}
 
             websocket.close()
 

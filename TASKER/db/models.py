@@ -100,15 +100,15 @@ class UserDB(Base):
     online: Mapped[bool] = mapped_column(default=False)
     last_seen: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now())
-    role: Mapped[Role] = mapped_column(role_enum, default=Role.user.value)
 
     chats = relationship('ChatUserDB', back_populates='user')
+    group_user = relationship('AdminsOfGroup', back_populates='user')
     friends = relationship(
         'FriendshipDB', back_populates='user', foreign_keys='FriendshipDB.user_id', lazy='selectin')
     sent_requests = relationship(
-        'FriendRequestDB', back_populates='sender', foreign_keys='FriendRequestDB.sender_id', lazy='selectin')
+        'FriendRequestDB', back_populates='sender', foreign_keys='FriendRequestDB.sender_id', lazy='selectin', cascade='all, delete-orphan')
     received_requests = relationship(
-        'FriendRequestDB', back_populates='receiver', foreign_keys='FriendRequestDB.receiver_id', lazy='selectin')
+        'FriendRequestDB', back_populates='receiver', foreign_keys='FriendRequestDB.receiver_id', lazy='selectin', cascade='all, delete-orphan')
     notifications_friend = relationship(
         'NotificationFriendReqDB', back_populates='user', cascade='all, delete-orphan')
     notifications_message = relationship(
@@ -138,8 +138,9 @@ class ChatDB(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     chat: Mapped[str] = mapped_column(VARCHAR, index=True, unique=True)
 
-    users = relationship('ChatUserDB', back_populates='chat')
-    messages = relationship('MessageDB', back_populates='chat')
+    users = relationship('ChatUserDB', back_populates='chat', cascade='all, delete')
+    messages = relationship('MessageDB', back_populates='chat', cascade='all, delete')
+    group_chat = relationship('AdminsOfGroup', back_populates='group_chat', cascade='all, delete')
 
 
 class ChatUserDB(Base):
@@ -177,3 +178,14 @@ class MessageDB(Base):
             value = getattr(self, column.name)
             result[column.name] = value
         return result
+
+class AdminsOfGroup(Base):
+    __tablename__ = 'moderator'
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('user.id'))
+    chat_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('chat.id'))
+    status: Mapped[Role] = mapped_column(role_enum, default=Role.user.value)
+
+    group_chat = relationship('ChatDB', back_populates='group_chat')
+    user = relationship('UserDB', back_populates='group_user')

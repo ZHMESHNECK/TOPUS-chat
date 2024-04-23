@@ -108,7 +108,6 @@ class TestLogin:
         assert token.username == login['username']
 
     # @pytest.mark.skip
-
     async def test_login_error_passw(self, client: httpx.AsyncClient):
 
         login = {

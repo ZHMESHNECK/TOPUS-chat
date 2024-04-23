@@ -3,8 +3,8 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from fastapi.testclient import TestClient
 from TASKER.core.security import hash_password
 from TASKER.core.config import get_session
-from TASKER.api.schemas.users import StatusFriend
-from TASKER.db.models import Base, UserDB, FriendshipDB, FriendRequestDB
+from TASKER.api.schemas.users import Role, StatusFriend
+from TASKER.db.models import AdminsOfGroup, Base, ChatDB, ChatUserDB, UserDB, FriendshipDB, FriendRequestDB
 from dotenv import load_dotenv
 from httpx import ASGITransport, AsyncClient
 from main import topus
@@ -42,7 +42,30 @@ async def override_session():
 topus.dependency_overrides[get_session] = override_session
 
 
-@pytest.fixture(scope='module')
+async def default_groups():
+    try:
+        async with async_session_maker() as session:
+            group1 = ChatDB(chat='test_group1')
+            group2 = ChatDB(chat='test_group2')
+            group3 = ChatDB(chat='test_group3')
+            session.add_all([group1, group2, group3])
+            await session.commit()
+            await session.refresh(group1)
+            await session.refresh(group2)
+            await session.refresh(group3)
+            user1 = ChatUserDB(chat_id=group1.id, user_id=1)
+            user2 = ChatUserDB(chat_id=group2.id, user_id=1)
+            user3 = ChatUserDB(chat_id=group3.id, user_id=1)
+            status1_ = AdminsOfGroup(user_id=1, chat_id=group1.id, status=Role.admin.value)
+            status2_ = AdminsOfGroup(user_id=1, chat_id=group2.id, status=Role.admin.value)
+            status3_ = AdminsOfGroup(user_id=1, chat_id=group3.id, status=Role.admin.value)
+            session.add_all([user1, user2, user3, status1_, status2_, status3_])
+            await session.commit()
+    except Exception as e:
+        logging.error(msg='default_groups', exc_info=True)
+        print(f"An error occurred while adding default group: {e}")
+
+
 async def default_friendship():
     try:
         async with async_session_maker() as session:
@@ -104,6 +127,8 @@ async def lifespan():
     async with engine_test.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await defaults_user()
+    await default_friendship()
+    await default_groups()
     yield
     async with engine_test.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)

@@ -42,4 +42,4 @@ templates = Jinja2Templates(directory='TASKER/templates')
 
 # Logging
 logging.basicConfig(level=logging.WARNING, filename='check_db_log.log',
-                    filemode='w', format="%(asctime)s %(levelname)s %(message)s")
+                    filemode='w', format="%(asctime)s %(levelname)s %(message)s", encoding='UTF-8')

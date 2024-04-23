@@ -19,7 +19,6 @@ def generate_token(user: UserDB) -> str:
         "exp": exp,
         "id": user.id,
         "username": user.username,
-        "role": user.role
     }
     return jwt.encode(payload, secret_jwt, algorithm=algorithm)
 

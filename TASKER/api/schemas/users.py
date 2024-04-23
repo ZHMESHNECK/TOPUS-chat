@@ -7,7 +7,7 @@ from enum import Enum
 class Role(Enum):
     user = 'user'
     admin = 'admin'
-    todo_owner = 'todo_owner'
+    moder = 'moder'
 
 
 class StatusFriend(Enum):
@@ -31,7 +31,6 @@ class User(BaseModel):
     password: str
     online: bool = Field(default=False)
     last_seen: datetime = Field(default=datetime.now(timezone.utc))
-    role: Role = Field(default=Role.user)
 
 
 class Login(BaseModel):
@@ -70,4 +69,3 @@ class UserFToken(BaseModel):
     exp: datetime
     id: int
     username: str
-    role: Role

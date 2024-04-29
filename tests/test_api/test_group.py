@@ -54,6 +54,19 @@ class TestGroupChat:
         assert response.status_code == 201
         assert response.json()['msg'] == 'Чат створенно'
 
+
+    async def test_create_group_short_title(self, client: httpx.AsyncClient):
+        login = {
+            "username": "TestUserDB",
+            "password": "12345678",
+        }
+        response = await client.post('/auth/login', json=login)
+        assert response.status_code == 200
+
+        response = await client.post('/chat/create_group', json={'title': '12'})
+        assert response.status_code == 400
+        assert response.json() == 'Введено занадто коротку назву'
+
     # @pytest.mark.skip
     async def test_add_one_user(self, client: httpx.AsyncClient):
         login = {

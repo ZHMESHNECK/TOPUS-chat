@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import WebSocket, status, WebSocketException
 from TASKER.core.utils import send_message_json
-from TASKER.db.chat_db import get_or_create_chat, save_message
+from TASKER.db.chat_db import create_group, get_or_create_chat, save_message
 from TASKER.db.user_db import set_user_status
 from typing import Dict, List
 
@@ -34,16 +34,24 @@ class PrivateManager:
             if not mes:
                 raise WebSocketException(
                     code=status.WS_1003_UNSUPPORTED_DATA, reason='Помилка при збереженні повідомлення')
-        # Відправка всім підключенним юзерам
-        for websocket in self.connections[chat]:
-            await websocket.send_json(send_message_json(type='private', sender=sender_id, message=message))
+        # # Відправка всім підключенним юзерам
+        # for websocket in self.connections[chat]:
+        #     await websocket.send_json(send_message_json(type='private', sender=sender_id, message=message))
 
         # Якщо юзер онлайн но не підключен до чату
-        if len(self.connections[chat]) < 2:
-            friend_socket = self.user_manager.active_connections.get(
-                friend_id, None)
-            if friend_socket and friend_socket not in self.connections[chat]:
-                await friend_socket.send_json(send_message_json(type='private', sender=sender_id, message=message))
+        # if len(self.connections[chat]) < 2:
+        friend_socket = self.user_manager.active_connections.get(
+            friend_id, None)
+        self_socket = self.user_manager.active_connections.get(
+            sender_id, None)
+
+        # Відправлення отримувачу
+        if friend_socket:
+            await friend_socket.send_json(send_message_json(type='private', sender=sender_id, message=message))
+
+        # Відправлення собі
+        if self_socket:
+            await self_socket.send_json(send_message_json(type='private', sender=sender_id, message=message))
 
     def disconnect(self, chat, websocket: WebSocket):
         chat: list = self.connections.get(chat)
@@ -106,20 +114,14 @@ class GroupManager:
     """
 
     def __init__(self, user_manage: 'PublicManager'):
-        self.user_manager = public_manager
+        self.group_manager = public_manager
         self.connections: Dict[str, List[WebSocket]] = {}
 
-    async def connect(self, chat: str, user_id: int, friend_id: int, websocket: WebSocket, db: AsyncSession) -> None:
-        if chat not in self.connections:
-            self.connections[chat] = []
-        self.connections[chat].append(websocket)
-        chat = await get_or_create_chat(
-            chat=chat, user_id=user_id, friend_id=friend_id, db=db)
-        if not chat:
-            raise WebSocketException(
-                code=status.WS_1011_INTERNAL_ERROR, reason='Помилка при підключенні')
+    async def connect(self, chat: str, user_id: int, websocket: WebSocket, db: AsyncSession) -> None:
+        ...
 
 
 # Online chats managers
 public_manager = PublicManager()
 private_manager = PrivateManager(public_manager)
+group_manager = GroupManager(public_manager)

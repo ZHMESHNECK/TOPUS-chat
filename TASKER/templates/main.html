@@ -8,6 +8,7 @@
 <p>Вітаємо {{ user.username }}</p>
 <p>{{ friends }}</p>
 <p>{{ notifications }}</p>
+<button class="create_group">Створити групу</button>
 
 <div class="all">
     {% include 'public_chat.html' %}
@@ -85,7 +86,7 @@
                 <ul class="messages">
                 </ul>
                 <div class="write-form">
-                    <textarea placeholder="Type your message" name="message_text" id="texxt" rows="2"></textarea>
+                    <textarea placeholder="Type your message" name="message_text" id="texxt"></textarea>
                     <span class="send" id="">Send</span>
                 </div>
             </div>

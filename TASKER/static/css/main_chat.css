@@ -390,21 +390,19 @@ body {
 }
 
 .error_message {
-    display: block;
-    position: fixed;
-    bottom: 380px;
     color: #c40000;
     font-size: 17px;
 }
 
 .ok_message {
-    display: block;
-    position: fixed;
-    bottom: 380px;
     color: green;
     font-size: 17px;
-}
 
+}
+.response_search {
+    display: grid;
+    padding-top: 190px
+}
 
 /* notification */
 :root {
@@ -576,4 +574,16 @@ input[id="radio-3"]:checked~.glider {
 .mess_req {
     border-left: 3px solid #00fa15 !important;
     border-bottom: 2px solid #00fa15 !important;
+}
+
+/* Групи */
+
+.info-group {
+    background-image: linear-gradient(144deg, #AF40FF, #5B42F3 50%, #00DDEB);
+    height: 46px;
+}
+
+.group {
+    display: block;
+    text-align: center;
 }

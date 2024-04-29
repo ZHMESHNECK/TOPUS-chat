@@ -130,7 +130,7 @@
     background: linear-gradient(120deg, #248a52, #257287);
     border-radius: 10px 10px 10px 10px;
     max-width: 380px;
-    word-wrap: break-word;
+    overflow-wrap: break-word;
     min-width: 50px;
     float: right;
 }

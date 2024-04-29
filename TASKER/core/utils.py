@@ -75,6 +75,17 @@ def get_list_message_req(result_user: List[UserDB], token: UserFToken):
 
 
 def send_message_json(type: str, sender: str | int, message: str):
+    """ Відправка повідомлення у websocket
+
+    Args:
+        type (str): private | public | group
+        sender (str | int): відправник
+        message (str): текст повідомлення 
+
+    Returns:
+        dict: type,user,message
+    """
+    message = message.replace('\n', '<br>')
     return {'type': type,
             'user': sender,
             'message': message}

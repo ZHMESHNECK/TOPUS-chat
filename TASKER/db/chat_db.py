@@ -65,7 +65,6 @@ async def add_user_to_chat(chat_id: int, user_id: List, db: AsyncSession):
 
 async def save_message(sender: int, message: str, db: AsyncSession, type: str, username: Optional[str] = None, friend_id: Optional[int] = None, chat: Optional[str] = None):
     try:
-        
         if type == 'private':
             chat: Chat = await get_or_create_chat(chat=chat, user_id=sender, friend_id=friend_id, db=db)
             db_message = MessageDB(
@@ -129,12 +128,11 @@ async def get_history_chat(chat_value: str, db: AsyncSession):
         try:
             history = await db.execute(statement2)
             history = history.scalars().all()
-            return [msg.as_dict() for msg in history]
+            return JSONResponse(status_code=status.HTTP_200_OK, content=[msg.as_dict() for msg in history])
         except:
             await db.rollback()
             logging.error(msg='get_history_chat', exc_info=True)
-            return False
-    return False
+    return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content='Помилка при завантаженні історії чату')
 
 
 async def get_public_history(db: AsyncSession):
@@ -153,12 +151,12 @@ async def get_public_history(db: AsyncSession):
             MessageDB.chat_id == pub_chat.id).limit(100)
         pub_history = await db.execute(statement2)
         pub_history = pub_history.scalars().all()
-        return [msg.as_dict() for msg in pub_history]
 
+        return JSONResponse(status_code=status.HTTP_200_OK, content=[msg.as_dict() for msg in pub_history])
     except:
         await db.rollback()
         logging.error(msg='get_public_history', exc_info=True)
-        return False
+        return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content='Помилка при завантаженні історії чату')
 
 
 async def rm_all_noti(user_id: int, friend_id: int, db: AsyncSession):
@@ -176,26 +174,31 @@ async def rm_all_noti(user_id: int, friend_id: int, db: AsyncSession):
 
 
 async def create_group(data: CreateGroupTitle, user_id: int, db: AsyncSession):
+    if len(data.title) <= 2:
+        return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content='Введено занадто коротку назву')
+    if not data.title.isalpha():
+        return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content='Введено недопустимі символи')
+
     statement = select(ChatDB).where(ChatDB.chat == data.title).exists()
 
     try:
         result = await db.scalar(select(statement))
         if not result:
-            group = ChatDB(chat=data.title)
-            db.add(group)
-            await db.commit()
-            await db.refresh(group)
-            user = ChatUserDB(chat_id=group.id, user_id=user_id)
-            status_ = AdminsOfGroup(user_id=user_id, chat_id=group.id, status=Role.admin.value)
-            db.add_all([user, status_])
-            await db.commit()
-            return JSONResponse(status_code=status.HTTP_201_CREATED, content={'msg': 'Чат створенно', 'id': group.id})
-        return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content='Чат вже існує, оберіть іншу назву')
+            # group = ChatDB(chat=data.title)
+            # db.add(group)
+            # await db.commit()
+            # await db.refresh(group)
+            # user = ChatUserDB(chat_id=group.id, user_id=user_id)
+            # status_ = AdminsOfGroup(user_id=user_id, chat_id=group.id, status=Role.admin.value)
+            # db.add_all([user, status_])
+            # await db.commit()
+            return JSONResponse(status_code=status.HTTP_201_CREATED, content={'msg': 'Групу створенно'})
+        return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content='Група вже існує, оберіть іншу назву')
 
     except:
         await db.rollback()
         logging.error(msg='create_group', exc_info=True)
-        return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content='При створенні чату сталася помилка')
+        return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content='При створенні групи сталася помилка')
 
 
 async def add_user_to_group(data: UsersFromGroup, owner: int, db: AsyncSession):
@@ -259,7 +262,7 @@ async def kick_from_group(data: KickUser, owner: int, db: AsyncSession):
         return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content='При видаленні юзера сталася помилка')
 
 
-async def delete_group(chat: str, chat_id: int, owner: int, db: AsyncSession):
+async def delete_group(chat_id: int, owner: int, db: AsyncSession):
     admin_statement = select(AdminsOfGroup).where(and_(
         AdminsOfGroup.user_id == owner,
         AdminsOfGroup.chat_id == chat_id,
@@ -271,7 +274,7 @@ async def delete_group(chat: str, chat_id: int, owner: int, db: AsyncSession):
         if not result:
             return JSONResponse(status_code=status.HTTP_403_FORBIDDEN, content='Не достатньо прав')
 
-        statement = delete(ChatDB).where(ChatDB.chat == chat)
+        statement = delete(ChatDB).where(ChatDB.id == chat_id)
         await db.execute(statement)
         await db.commit()
         return JSONResponse(status_code=status.HTTP_200_OK, content='Група видалена')
@@ -279,3 +282,27 @@ async def delete_group(chat: str, chat_id: int, owner: int, db: AsyncSession):
         await db.rollback()
         logging.error(msg='delete_group', exc_info=True)
         return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content='Не вдалося видалити групу')
+
+
+async def group_history(group_title: str, db: AsyncSession):
+    statement = select(ChatDB).where(ChatDB.chat == group_title)
+    try:
+        group_chat = await db.execute(statement)
+        group_chat = group_chat.scalar_one_or_none()
+
+        if not group_chat:
+            chat = ChatDB(chat=group_title)
+            db.add(chat)
+            await db.commit()
+            await db.refresh(chat)
+
+        statement2 = select(MessageDB).filter(
+            MessageDB.chat_id == group_chat.id).limit(200)
+        group_history = await db.execute(statement2)
+        group_history = group_history.scalars().all()
+        return [msg.as_dict() for msg in group_history]
+
+    except:
+        await db.rollback()
+        logging.error(msg='get_group_history', exc_info=True)
+        return False

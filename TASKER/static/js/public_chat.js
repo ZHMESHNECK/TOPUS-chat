@@ -1,6 +1,8 @@
 // online / offline
 document.addEventListener('DOMContentLoaded', connetcToPubChat);
-document.addEventListener('DOMContentLoaded', clickOnUser(0));
+document.addEventListener('DOMContentLoaded', function () {
+    clickOnblock(0);
+});
 // public chat
 const PublicmessageHistory = document.querySelector('.pub_messages-content');
 const sendPubMes = document.querySelector('.message-box .message-submit')
@@ -54,43 +56,66 @@ async function showPubHistory() {
 
 // Online | Offline
 function connetcToPubChat() {
-    let pubwebsocket;
-    if (publicWebSockets.has(user['id'])) {
-        pubwebsocket = publicWebSockets.get(user['id']);
-    } else {
+    let pubwebsocket = publicWebSockets.get(user['id']);
+    if (!pubwebsocket) {
         showPubHistory();
         pubwebsocket = new WebSocket(`ws://localhost:8000/chat/public_chat/${user['id']}/${user['username']}`);
         publicWebSockets.set(user['id'], pubwebsocket);
         pubwebsocket.onmessage = function (e) {
-            try {
-                const jsonData = JSON.parse(e.data);
-                if (jsonData.type == 'update_status') {
-                    let user = document.querySelectorAll(`[data-user-id="${jsonData.user_id}"]`)
-                    user.forEach(function (el) {
-                        if (jsonData.online) {
-                            if (el.nextElementSibling.classList.contains('off')) {
-                                el.nextElementSibling.classList.remove('off')
-                                el.nextElementSibling.classList.add('on')
-                                el.nextElementSibling.innerHTML = 'онлайн'
-                            }
-                        } else {
-                            if (!el.nextElementSibling.classList.contains('off')) {
-                                el.nextElementSibling.classList.remove('on')
-                                el.nextElementSibling.classList.add('off')
-                                el.nextElementSibling.innerHTML = get_date()
-                            }
-                        }
-                    })
-                } else if (jsonData.type == 'public') {
-                    handlePublickIncomingMessage(jsonData)
-                }
-
-            } catch (error) {
-                console.log(error)
-            }
-        };
+            handleIncomingMessage(e.data)
+        }
     }
-    return pubwebsocket;
+    return pubwebsocket
+}
+
+// Повідомлення з приватного websocket
+function handleIncomingMessage(message) {
+
+    const selectedUserElement = document.querySelector('.info.selected_user');
+    let active_friendname_chat, active_friendname_id
+    let data = JSON.parse(message)
+
+    if (data.type == 'update_status') {
+        let user = document.querySelectorAll(`[data-user-id="${data.user_id}"]`)
+        user.forEach(function (el) {
+            let element = el.nextElementSibling
+            if (data.online) {
+                if (element.classList.contains('off')) {
+                    element.classList.remove('off')
+                    element.classList.add('on')
+                    element.innerHTML = 'онлайн'
+                }
+            } else {
+                if (!element.classList.contains('off')) {
+                    element.classList.remove('on')
+                    element.classList.add('off')
+                    element.innerHTML = get_date()
+                }
+            }
+        })
+        return;
+    }
+    if (data.type == 'public') {
+        handlePublickIncomingMessage(data)
+        return;
+    }
+
+    if (selectedUserElement) {
+        active_friendname_chat = selectedUserElement.firstElementChild.getAttribute('data-user-name');
+        active_friendname_id = selectedUserElement.firstElementChild.getAttribute('data-user-id');
+    }
+
+    // Якщо id sender or receiver в active_friendname_id - тоді показуємо повідомлення
+    if (active_friendname_id == data.user || data.user == user['id']) {
+        let isFriendMessage = data.user != user['id'];
+        let messageSender = isFriendMessage ? active_friendname_chat : 'Ви';
+        let messageClass = isFriendMessage ? 'friend-with-a-SVAGina' : 'i';
+        let messageHTML = `<li class="${messageClass}"><div class="head"><span class="name">${messageSender}</span></div><div class="message">${data.message}</div></li>`;
+        messageHistory.insertAdjacentHTML('beforeend', messageHTML);
+        messageHistory.scrollTop = messageHistory.scrollHeight;
+    } else {
+        add_count_noti(data.user, type = 'private')
+    }
 }
 
 // Надсилання повідомлення до загального чату
@@ -105,11 +130,14 @@ function sendMessagePub() {
 
 // Текст повідомлення загального чату
 pubtextarea.addEventListener('keydown', function (event) {
-    if (event.key === 'Enter') {
-        event.preventDefault();
-        sendMessagePub();
+    if (event.key === 'Enter' && event.shiftKey) {
+        event.preventDefault()
+        this.value += '\n';
+    } else if (event.key === 'Enter') {
+        event.preventDefault()
+        sendMessagePub()
     }
-});
+})
 
 // Повідомлення для загального чату
 function handlePublickIncomingMessage(message) {

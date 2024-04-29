@@ -3,11 +3,11 @@ from typing import Optional
 
 
 class SearchRequest(BaseModel):
-    request: Optional[str] = Field(min_length=2)
+    request: Optional[str]
 
 
 class CreateGroupTitle(BaseModel):
-    title: Optional[str] = Field(min_length=3)
+    title: Optional[str]
 
 class UsersFromGroup(BaseModel):
     chat: Optional[int]

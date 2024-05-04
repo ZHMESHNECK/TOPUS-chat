@@ -1,13 +1,10 @@
-from pydantic import BaseModel, Field
-from TASKER.api.schemas.users import Role
+from pydantic import BaseModel
 
 
 class Chat(BaseModel):
     id: int
-    chat: str
+    title: str
 
 
-class GroupChatCreate(BaseModel):
-    user: int
-    chat: str
-    status: Role = Field(default=Role.user)
+class CreateGroupTitle(BaseModel):
+    title: str

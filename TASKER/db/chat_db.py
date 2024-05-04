@@ -1,24 +1,26 @@
-from fastapi.responses import JSONResponse
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, delete, update
-from fastapi import WebSocketException, status
-from TASKER.api.schemas.chat import Chat
+from fastapi.responses import JSONResponse
+from fastapi import status
 from TASKER.api.schemas.users import Role
-from TASKER.api.schemas.utils import KickUser, UsersFromGroup, CreateGroupTitle
+from TASKER.api.schemas.utils import KickUser, UsersFromGroup
+from TASKER.api.schemas.chat import Chat, CreateGroupTitle
+from TASKER.core.utils import has_special_characters
+from TASKER.db.noti_db import save_notification
 from TASKER.db.models import AdminsOfGroup, ChatDB, ChatUserDB, MessageDB, NotificationMessageDB
 from typing import List, Optional
 import logging
 
 
 async def get_public_chat_id(db: AsyncSession):
-    statement = select(ChatDB).where(ChatDB.chat == 'public')
+    statement = select(ChatDB).where(ChatDB.title == 'public')
     chat_id = await db.execute(statement)
     chat_id = chat_id.scalar_one_or_none()
     if chat_id:
         return chat_id
     else:
-        chat = ChatDB(chat='public')
+        chat = ChatDB(title='public')
         db.add(chat)
         await db.commit()
         await db.refresh(chat)
@@ -26,7 +28,7 @@ async def get_public_chat_id(db: AsyncSession):
 
 
 async def get_or_create_chat(chat: str, user_id: int, friend_id: int, db: AsyncSession):
-    statement = select(ChatDB).filter(ChatDB.chat == chat)
+    statement = select(ChatDB).filter(ChatDB.title == chat)
     try:
         alrady_exists = await db.execute(statement)
         alrady_exists = alrady_exists.scalar_one_or_none()
@@ -34,7 +36,7 @@ async def get_or_create_chat(chat: str, user_id: int, friend_id: int, db: AsyncS
         if alrady_exists:
             return alrady_exists
         else:
-            new_chat = ChatDB(chat=chat)
+            new_chat = ChatDB(title=chat)
             db.add(new_chat)
             await db.commit()
             await db.refresh(new_chat)
@@ -48,6 +50,22 @@ async def get_or_create_chat(chat: str, user_id: int, friend_id: int, db: AsyncS
         logging.error(msg='get_or_create_chat', exc_info=True)
         await db.rollback()
         return False
+
+
+async def get_group_chat(group_title: str, db: AsyncSession):
+    statement = select(ChatDB).where(ChatDB.title == group_title)
+    chat = await db.execute(statement)
+    chat = chat.fetchone()
+    if chat:
+        return chat[0]
+    return False
+
+
+async def get_user_groups(user_id: int, db: AsyncSession):
+    statement = select(ChatDB).join(AdminsOfGroup).where(AdminsOfGroup.user_id == user_id)
+    chats = await db.execute(statement)
+    chats = chats.scalars().all()
+    return [group.title for group in chats]
 
 
 async def add_user_to_chat(chat_id: int, user_id: List, db: AsyncSession):
@@ -89,6 +107,18 @@ async def save_message(sender: int, message: str, db: AsyncSession, type: str, u
             db.add(db_message)
             await db.commit()
 
+        elif type == 'group':
+            chat: Chat = await get_group_chat(chat, db)
+            if chat:
+                db_message = MessageDB(
+                    chat_id=chat.id,
+                    sender_id=sender,
+                    sender_username=username,
+                    message=message
+                )
+                db.add(db_message)
+                await db.commit()
+
         else:
             return False
 
@@ -99,25 +129,8 @@ async def save_message(sender: int, message: str, db: AsyncSession, type: str, u
         return False
 
 
-async def save_notification(chat: Chat, user_id: int, sender_id: int, message: int, db: AsyncSession):
-    try:
-        db_message = NotificationMessageDB(
-            user_id=user_id,
-            sender_id=sender_id,
-            chat_id=chat.id,
-            message_id=message
-        )
-        db.add(db_message)
-        await db.commit()
-    except Exception:
-        await db.rollback()
-        logging.error(msg='save notification message', exc_info=True)
-        return WebSocketException(
-            code=status.WS_1003_UNSUPPORTED_DATA)
-
-
 async def get_history_chat(chat_value: str, db: AsyncSession):
-    statement = select(ChatDB).where(ChatDB.chat == chat_value)
+    statement = select(ChatDB).where(ChatDB.title == chat_value)
 
     chat = await db.execute(statement)
     chat = chat.scalar_one_or_none()
@@ -136,13 +149,13 @@ async def get_history_chat(chat_value: str, db: AsyncSession):
 
 
 async def get_public_history(db: AsyncSession):
-    statement = select(ChatDB).where(ChatDB.chat == 'public')
+    statement = select(ChatDB).where(ChatDB.title == 'public')
     try:
         pub_chat = await db.execute(statement)
         pub_chat = pub_chat.scalar_one_or_none()
 
         if not pub_chat:
-            chat = ChatDB(chat='public')
+            chat = ChatDB(title='public')
             db.add(chat)
             await db.commit()
             await db.refresh(chat)
@@ -176,22 +189,22 @@ async def rm_all_noti(user_id: int, friend_id: int, db: AsyncSession):
 async def create_group(data: CreateGroupTitle, user_id: int, db: AsyncSession):
     if len(data.title) <= 2:
         return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content='Введено занадто коротку назву')
-    if not data.title.isalpha():
+    if has_special_characters(data.title):
         return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content='Введено недопустимі символи')
 
-    statement = select(ChatDB).where(ChatDB.chat == data.title).exists()
+    statement = select(ChatDB).where(ChatDB.title == data.title).exists()
 
     try:
         result = await db.scalar(select(statement))
         if not result:
-            # group = ChatDB(chat=data.title)
-            # db.add(group)
-            # await db.commit()
-            # await db.refresh(group)
-            # user = ChatUserDB(chat_id=group.id, user_id=user_id)
-            # status_ = AdminsOfGroup(user_id=user_id, chat_id=group.id, status=Role.admin.value)
-            # db.add_all([user, status_])
-            # await db.commit()
+            group = ChatDB(title=data.title)
+            db.add(group)
+            await db.commit()
+            await db.refresh(group)
+            user = ChatUserDB(chat_id=group.id, user_id=user_id)
+            status_ = AdminsOfGroup(user_id=user_id, chat_id=group.id, status=Role.admin.value)
+            db.add_all([user, status_])
+            await db.commit()
             return JSONResponse(status_code=status.HTTP_201_CREATED, content={'msg': 'Групу створенно'})
         return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content='Група вже існує, оберіть іншу назву')
 
@@ -212,7 +225,7 @@ async def add_user_to_group(data: UsersFromGroup, owner: int, db: AsyncSession):
     try:
         result = await db.execute(statement)
         result = {user.user_id: user.status for user in result.scalars()}
-        if result[owner] != Role.admin.value:
+        if owner in result and result[owner] != Role.admin.value:
             return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content='Ви не адмін чату')
 
         for user in data.users:
@@ -262,10 +275,14 @@ async def kick_from_group(data: KickUser, owner: int, db: AsyncSession):
         return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content='При видаленні юзера сталася помилка')
 
 
-async def delete_group(chat_id: int, owner: int, db: AsyncSession):
+async def delete_group(group_title: str, owner: int, db: AsyncSession):
+    group: ChatDB = await get_group_chat(group_title, db)
+    if not group:
+        return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content='Групу не знайдено')
+
     admin_statement = select(AdminsOfGroup).where(and_(
         AdminsOfGroup.user_id == owner,
-        AdminsOfGroup.chat_id == chat_id,
+        AdminsOfGroup.chat_id == group.id,
         AdminsOfGroup.status == Role.admin.value,
     )).exists()
 
@@ -274,7 +291,7 @@ async def delete_group(chat_id: int, owner: int, db: AsyncSession):
         if not result:
             return JSONResponse(status_code=status.HTTP_403_FORBIDDEN, content='Не достатньо прав')
 
-        statement = delete(ChatDB).where(ChatDB.id == chat_id)
+        statement = delete(ChatDB).where(ChatDB.id == group.id)
         await db.execute(statement)
         await db.commit()
         return JSONResponse(status_code=status.HTTP_200_OK, content='Група видалена')
@@ -285,13 +302,13 @@ async def delete_group(chat_id: int, owner: int, db: AsyncSession):
 
 
 async def group_history(group_title: str, db: AsyncSession):
-    statement = select(ChatDB).where(ChatDB.chat == group_title)
+    statement = select(ChatDB).where(ChatDB.title == group_title)
     try:
         group_chat = await db.execute(statement)
         group_chat = group_chat.scalar_one_or_none()
 
         if not group_chat:
-            chat = ChatDB(chat=group_title)
+            chat = ChatDB(title=group_title)
             db.add(chat)
             await db.commit()
             await db.refresh(chat)
@@ -300,9 +317,9 @@ async def group_history(group_title: str, db: AsyncSession):
             MessageDB.chat_id == group_chat.id).limit(200)
         group_history = await db.execute(statement2)
         group_history = group_history.scalars().all()
-        return [msg.as_dict() for msg in group_history]
+        return JSONResponse(status_code=status.HTTP_200_OK, content=[msg.as_dict() for msg in group_history])
 
     except:
         await db.rollback()
         logging.error(msg='get_group_history', exc_info=True)
-        return False
+        return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content='Помилка сервера')

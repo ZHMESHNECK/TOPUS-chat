@@ -12,6 +12,7 @@ from TASKER.api.routes.search import search
 from TASKER.api.routes.chat import chat
 from TASKER.api.routes.auth import auth
 from TASKER.api.routes.user import user
+from TASKER.db.chat_db import get_user_groups
 from TASKER.db.noti_db import get_count_notification
 from TASKER.db.user_db import get_list_friends, logout
 import uvicorn
@@ -36,14 +37,16 @@ async def custom_exception(requests: Request, exc: RequestValidationError):
 async def main(request: Request, TOPUS: UserFToken = Depends(decode_token), db: AsyncSession = Depends(get_session)):
     if not TOPUS:
         return RedirectResponse(url='auth/login')
+    
     list_friends = await get_list_friends(TOPUS, db)
     notifications = await get_count_notification(TOPUS, db)
+    groups = await get_user_groups(TOPUS.id, db)
 
     user = {
         'id': TOPUS.id,
         'username': TOPUS.username
     }
-    return templates.TemplateResponse('main.html', {'request': request, 'user': user, 'friends': list_friends, 'notifications': notifications})
+    return templates.TemplateResponse('main.html', {'request': request, 'user': user, 'friends': list_friends, 'notifications': notifications, 'groups': groups})
 
 
 @topus.post('/logout')

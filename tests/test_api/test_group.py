@@ -1,5 +1,3 @@
-from TASKER.core.security import decode_token
-from TASKER.api.schemas.users import UserFToken
 import pytest
 import httpx
 
@@ -31,10 +29,15 @@ import httpx
     role - default - "user"
 
 
-5)  # owner 1
+Default group
+5)
     ChatDB(chat='test_group1')
     ChatDB(chat='test_group2')
     ChatDB(chat='test_group3')
+
+    TestUserDB - admin
+    TestUserDB2 - user in test_group3
+
 """
 
 
@@ -50,10 +53,9 @@ class TestGroupChat:
         response = await client.post('/auth/login', json=login)
         assert response.status_code == 200
 
-        response = await client.post('/chat/create_group', json={'title': 'chat_create'})
+        response = await client.post(f'/chat/create_group', json={'title': 'chat create'})
         assert response.status_code == 201
-        assert response.json()['msg'] == 'Чат створенно'
-
+        assert response.json()['msg'] == 'Групу створенно'
 
     async def test_create_group_short_title(self, client: httpx.AsyncClient):
         login = {
@@ -185,7 +187,7 @@ class TestGroupChat:
         response = await client.post('/auth/login', json=login2)
         assert response.status_code == 200
 
-        response = await client.delete('/chat/delete_group/group1/1')
+        response = await client.delete('/chat/delete_group/test_group1')
 
         assert response.status_code == 403
         assert response.json() == 'Не достатньо прав'
@@ -200,7 +202,7 @@ class TestGroupChat:
         response = await client.post('/auth/login', json=login2)
         assert response.status_code == 200
 
-        response = await client.delete('/chat/delete_group/group1/1')
+        response = await client.delete('/chat/delete_group/test_group1')
 
         assert response.status_code == 200
         assert response.json() == 'Група видалена'

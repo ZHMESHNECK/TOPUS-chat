@@ -1,6 +1,10 @@
+from TASKER.db.chat_db import get_user_groups
+from TASKER.db.noti_db import get_count_notification
+from TASKER.db.user_db import get_list_friends
 from TASKER.core.security import decode_token
 from TASKER.api.schemas.users import UserFToken
-# import pytest
+from tests.test_api.conftest import async_session_maker
+import pytest
 import httpx
 
 
@@ -10,7 +14,7 @@ import httpx
     login = {
         "username" : "TestUserDB",
         "password" : "12345678" - func
-    role - default - "user"
+
     }
 2)
     id: 2
@@ -18,17 +22,17 @@ import httpx
     login2 = {
         "username" : "TestUserDB2",
         "password" : "12345678" - func
-    role - default - "user"
+
     }
 
 3)
     username - TestUserDBFriend3  - friend with 4
     password - hash_password("12345678") - func
-    role - default - "user"
+
 4)
     username - TestUserDBFriend4  - friend with 3
     password - hash_password("12345678") - func
-    role - default - "user"
+
 """
 
 
@@ -241,13 +245,28 @@ class TestFriend:
 # @pytest.mark.skip
 class TestMainPage:
 
-    async def test_get_list_friend_1_friend(self, client: httpx.AsyncClient):
+    async def test_main_page(self, client: httpx.AsyncClient):
+        """ Тест функцій у main.py - topus.get('/')
+
+        Args:
+            client (httpx.AsyncClient):
+        """
         login = {
-            "username": "TestUserDB",
+            "username": "TestUserDB2",
             "password": "12345678",
         }
         response = await client.post('/auth/login', json=login)
         assert response.status_code == 200
+        token: UserFToken = decode_token(response.cookies.get('TOPUS'))
 
-        response = await client.get('/')
-        assert response.status_code == 200
+        async with async_session_maker() as session:
+            list_friends = await get_list_friends(token, session)
+            assert list_friends == []
+            count_noti = await get_count_notification(token, session)
+            assert count_noti == {
+                'unread_mess': 0,
+                'user_mes': {},
+                'user_req': 0
+            }
+            list_groups = await get_user_groups(token.id, session)
+            assert list_groups == ['test_group3']

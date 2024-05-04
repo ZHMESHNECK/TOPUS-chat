@@ -3,10 +3,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func
 from sqlalchemy import and_, desc
 from fastapi.responses import JSONResponse
+from fastapi import HTTPException, WebSocketException, status
+from TASKER.api.schemas.chat import Chat
 from TASKER.core.utils import get_list_friend_req, get_list_message_req
 from TASKER.api.schemas.users import StatusFriend, UserFToken
 from TASKER.db.models import FriendRequestDB, NotificationFriendReqDB, NotificationMessageDB
-from fastapi import HTTPException, status
 import logging
 
 
@@ -89,3 +90,20 @@ async def mess_req_noti(token: UserFToken, db: AsyncSession):
     except:
         logging.error(msg='friend_req_noti', exc_info=True)
         return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+async def save_notification(chat: Chat, user_id: int, sender_id: int, message: int, db: AsyncSession):
+    try:
+        db_message = NotificationMessageDB(
+            user_id=user_id,
+            sender_id=sender_id,
+            chat_id=chat.id,
+            message_id=message
+        )
+        db.add(db_message)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        logging.error(msg='save notification message', exc_info=True)
+        return WebSocketException(
+            code=status.WS_1003_UNSUPPORTED_DATA)

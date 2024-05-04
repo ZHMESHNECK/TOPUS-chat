@@ -136,7 +136,7 @@ class ChatDB(Base):
     __tablename__ = 'chat'
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    chat: Mapped[str] = mapped_column(VARCHAR, index=True, unique=True)
+    title: Mapped[str] = mapped_column(VARCHAR, index=True, unique=True)
 
     users = relationship('ChatUserDB', back_populates='chat', cascade='all, delete')
     messages = relationship('MessageDB', back_populates='chat', cascade='all, delete')
@@ -146,8 +146,8 @@ class ChatDB(Base):
 class ChatUserDB(Base):
     __tablename__ = 'chat_users'
 
-    chat_id = mapped_column(Integer, ForeignKey('chat.id'), primary_key=True)
-    user_id = mapped_column(Integer, ForeignKey('user.id'), primary_key=True)
+    chat_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('chat.id', ondelete='CASCADE'), primary_key=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('user.id'), primary_key=True)
 
     chat = relationship('ChatDB', back_populates='users')
     user = relationship('UserDB', back_populates='chats')
@@ -179,12 +179,13 @@ class MessageDB(Base):
             result[column.name] = value
         return result
 
+
 class AdminsOfGroup(Base):
-    __tablename__ = 'moderator'
+    __tablename__ = 'group'
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('user.id'))
-    chat_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('chat.id'))
+    chat_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('chat.id', ondelete='CASCADE'))
     status: Mapped[Role] = mapped_column(role_enum, default=Role.user.value)
 
     group_chat = relationship('ChatDB', back_populates='group_chat')

@@ -1,6 +1,7 @@
 from TASKER.api.schemas.users import StatusFriend, UserFToken
 from TASKER.db.models import UserDB
 from typing import List
+import re
 
 # Поля які потрібно повернути
 fields = ['id', 'username', 'online', 'last_seen']
@@ -89,3 +90,16 @@ def send_message_json(type: str, sender: str | int, message: str):
     return {'type': type,
             'user': sender,
             'message': message}
+
+
+def has_special_characters(input_string):
+    """ Перевірка валідності назви групи при її створенні
+
+    Args:
+        input_string (str): Назва групи
+
+    Returns:
+        bool
+    """
+    regex = re.compile('[@!#$%^&*()<>?/\}{~:]')
+    return bool(regex.search(input_string))

@@ -29,6 +29,15 @@ import pytest
     username - TestUserDBFriend4  - friend with 3
     password - 12345678 - func
     role - default - "user"
+
+Default group
+5)
+    ChatDB(chat='test_group1')
+    ChatDB(chat='test_group2')
+    ChatDB(chat='test_group3')
+
+    TestUserDB - admin
+    TestUserDB2 - user in test_group3
 """
 
 
@@ -36,21 +45,19 @@ import pytest
 class TestChat:
 
     # @pytest.mark.skip
-    def test_websocket(self):
+    def test_websocket(self, client: TestClient):
         """
         Перевірка websocket
         """
-        client = TestClient(topus)
         with client.websocket_connect("/chat/ws") as websocket:
             data = websocket.receive_text()
             assert data == "Hello WebSocket"
             websocket.close()
 
     # @pytest.mark.skip
-    async def test_create_private_chat_error(self):
+    async def test_create_private_chat_error(self, client: TestClient):
         """Створення приватного чату з самим собою
         """
-        client = TestClient(topus)
 
         with pytest.raises(WebSocketDisconnect) as exc_info:
             with client.websocket_connect('/chat/private_chat/1/1') as _:
@@ -60,11 +67,10 @@ class TestChat:
         assert exc_info.value.reason == 'Собі не можна написати'
 
     # @pytest.mark.skip
-    async def test_connect_private(self):
+    async def test_connect_private(self, client: TestClient):
         """
         Юзер надсилає приватне повідомлення + перевірка повідомлень
         """
-        client = TestClient(topus)
 
         with client.websocket_connect('/chat/private_chat/1/2') as websocket:
             websocket.send_text('Hi, Private!')
@@ -100,11 +106,11 @@ class TestChat:
         assert noti[0]['username'] == token.username
 
     # @pytest.mark.skip
-    async def test_connect_private_second(self):
+    async def test_connect_private_second(self, client: TestClient):
         """
         Другий юзер відповідає на повідомлення першому
         """
-        client = TestClient(topus)
+        # client = TestClient(topus)
 
         # юзер 1 надсилає повідомлення юзеру 2
         with client.websocket_connect('/chat/private_chat/1/2') as websocket:
@@ -121,11 +127,9 @@ class TestChat:
             websocket.close()
 
     # @pytest.mark.skip
-    async def test_get_chat_history(self):
+    async def test_get_chat_history(self, client: TestClient):
         """ Отримання історії чату між 1 та 2 юзером
         """
-
-        client = TestClient(topus)
 
         data1 = {
             "username": "TestUserDBFriend3",
@@ -170,8 +174,7 @@ class TestChat:
 # @pytest.mark.skip
 class TestPublicChat:
 
-    async def test_send_message(self):
-        client = TestClient(topus)
+    async def test_send_message(self, client: TestClient):
 
         data1 = {
             "username": "TestUserDB",
@@ -210,4 +213,85 @@ class TestPublicChat:
             'sender_id': token.id,
             'sender_username': token.username,
             'message': 'окей',
+        }
+
+
+# @pytest.mark.skip
+class TestGroupChat:
+
+    # @pytest.mark.skip
+    async def test_send_message(self, client: TestClient):
+        # юзер 1
+        data1 = {
+            "username": "TestUserDB",
+            "password": "12345678"
+        }
+
+        response = client.post('/auth/login', json=data1)
+        assert response.status_code == 200
+        token: UserFToken = decode_token(response.cookies.get('TOPUS'))
+
+        with client.websocket_connect(f'/chat/group_chat/test_group3/{token.id}/{token.username}') as websocket:
+            websocket.send_text('група 3 месседж')
+            ans = websocket.receive_json()
+            assert ans == {'type': 'group',
+                           'user': 'TestUserDB',
+                           'message': 'група 3 месседж'}
+            await sleep(1)
+            websocket.send_text('окей')
+            ans = websocket.receive_json()
+            assert ans == {'type': 'group',
+                           'user': 'TestUserDB',
+                           'message': 'окей'}
+
+            websocket.close()
+
+        # юзер 2    
+        data2 = {
+            "username": "TestUserDB2",
+            "password": "12345678"
+        }
+        response = client.post('/auth/login', json=data2)
+        assert response.status_code == 200
+        token2: UserFToken = decode_token(response.cookies.get('TOPUS'))
+
+        with client.websocket_connect(f'/chat/group_chat/test_group3/{token2.id}/{token2.username}') as websocket:
+            websocket.send_text('група 3 месседж 2')
+            ans = websocket.receive_json()
+            assert ans == {'type': 'group',
+                           'user': 'TestUserDB2',
+                           'message': 'група 3 месседж 2'}
+            await sleep(1)
+            websocket.send_text('окей 2')
+            ans = websocket.receive_json()
+            assert ans == {'type': 'group',
+                           'user': 'TestUserDB2',
+                           'message': 'окей 2'}
+
+            websocket.close()
+
+    async def test_send_message_check_histrory(self, client: TestClient):
+        # юзер 1
+        data1 = {
+            "username": "TestUserDB",
+            "password": "12345678"
+        }
+
+        response = client.post('/auth/login', json=data1)
+        assert response.status_code == 200
+        token: UserFToken = decode_token(response.cookies.get('TOPUS'))
+
+        with client.websocket_connect(f'/chat/group_chat/test_group3/{token.id}/{token.username}') as websocket:
+            websocket.send_text('група 3 месседж')
+            await sleep(1)
+            websocket.close()
+
+        # Отриманн я історії чату
+        response = client.get('/chat/get_group_history/test_group3')
+        assert response.status_code == 200
+        data = response.json()
+        assert data[0] == {
+            'sender_id': token.id,
+            'sender_username': token.username,
+            'message': 'група 3 месседж',
         }
